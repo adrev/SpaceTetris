@@ -324,6 +324,7 @@
         let invaders = [];
         let bullets = [];
         let blocks = [];
+        let alienAnims = [];
         let score = 0;
         let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
         let gameOver = false;
@@ -769,6 +770,24 @@
                 gameOver = true;
             }
 
+            // --- Alien Animations ---
+            // At high scores, spawn alien animations – more frequently after 1000 points.
+            if (score >= 500 && Math.random() < 0.005) {
+                spawnAlienAnimation();
+            }
+            if (score >= 1000 && Math.random() < 0.01) {
+                spawnAlienAnimation();
+            }
+
+            // Update and draw active alien animations
+            for (let i = alienAnims.length - 1; i >= 0; i--) {
+                updateAlien(alienAnims[i]);
+                drawAlien(alienAnims[i]);
+                if (alienAnims[i].x > canvas.width || alienAnims[i].life <= 0) {
+                    alienAnims.splice(i, 1);
+                }
+            }
+
             ctx.fillStyle = '#FFFFFF';
             ctx.strokeStyle = '#000';
             ctx.font = '20px Arial';
@@ -954,6 +973,37 @@
             console.log("Attaching submitScoreBtn listener via attachSubmitScoreListener().");
             attachSubmitScoreListener();
         });
+
+        // Spawn a new alien animation object.
+        function spawnAlienAnimation() {
+            let alien = {
+                // Start slightly off the left edge.
+                x: -30,
+                // Random vertical position within the canvas.
+                y: Math.random() * (canvas.height - 30),
+                // Horizontal velocity between 2 and 5 pixels per frame.
+                vx: 2 + Math.random() * 3,
+                vy: 0, // no vertical movement
+                life: 300  // lasts for about 300 frames
+            };
+            alienAnims.push(alien);
+        }
+
+        // Update alien position and age.
+        function updateAlien(alien) {
+            alien.x += alien.vx;
+            alien.y += alien.vy;
+            alien.life--;
+        }
+
+        // Draw a simple 8-bit alien. You can adjust these drawing parameters for more flair.
+        function drawAlien(alien) {
+            ctx.fillStyle = '#00FF00';  // bright green alien body
+            ctx.fillRect(alien.x, alien.y, 20, 20);  // alien's body
+            ctx.fillStyle = '#000000';  // alien eyes
+            ctx.fillRect(alien.x + 5, alien.y + 5, 4, 4);
+            ctx.fillRect(alien.x + 11, alien.y + 5, 4, 4);
+        }
     </script>
 </body>
 </html>
