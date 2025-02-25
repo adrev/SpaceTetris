@@ -1101,7 +1101,14 @@
 
                 // Replace the overlay content with a big countdown message.
                 const cp = document.getElementById('userProfile');
-                cp.textContent = '<div id="countdownMessage" style="font-size: 72px; font-weight: bold; color: #00FFFF;">3</div>';
+                cp.innerHTML = ''; // Clear current content
+                const countdownDiv = document.createElement('div');
+                countdownDiv.id = 'countdownMessage';
+                countdownDiv.style.fontSize = "72px";
+                countdownDiv.style.fontWeight = "bold";
+                countdownDiv.style.color = "#00FFFF";
+                countdownDiv.textContent = "3";
+                cp.appendChild(countdownDiv);
 
                 // Fixed countdown timing (total duration 1.5 seconds).
                 setTimeout(() => {
