@@ -348,6 +348,30 @@
         let cheatMode = false;
         let spaceDown = false;
 
+        // Clear all control flags if the window loses focus.
+        window.addEventListener('blur', () => {
+            leftPressed = false;
+            rightPressed = false;
+            upPressed = false;
+            downPressed = false;
+            shootRequested = false;
+            spaceDown = false;
+            cheatMode = false;
+        });
+
+        // Also reset flags when the page becomes hidden (e.g. user switches tab)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                leftPressed = false;
+                rightPressed = false;
+                upPressed = false;
+                downPressed = false;
+                shootRequested = false;
+                spaceDown = false;
+                cheatMode = false;
+            }
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'a') leftPressed = true;
             if (e.key === 'ArrowRight' || e.key === 'd') rightPressed = true;
