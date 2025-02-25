@@ -139,20 +139,6 @@
             border: none;
         }
 
-        /* Mute button styling */
-        #muteBtn {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #444;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-
         /* User Profile / Nickname Input styling */
         #userProfile {
             margin-top: 10px;
@@ -286,13 +272,10 @@
     <!-- Leaderboard: Top 100 scores -->
     <div id="publicHighscoreDisplay"></div>
     <!-- 8-bit space inspired background music -->
-    <audio id="bgMusic" loop>
-       <source src="background-music.mp3" type="audio/mpeg">
+    <audio id="bgMusic">
+       <source id="bgMusicSource" src="SpaceTris Soundtrack/01.mp3" type="audio/mpeg">
        Your browser does not support the audio element.
     </audio>
-
-    <!-- Mute Button -->
-    <button id="muteBtn">Mute</button>
 
     <!-- New Mobile Controls -->
     <div id="joystickContainer">
@@ -300,11 +283,38 @@
     </div>
     <button id="mobileFireBtn">Fire</button>
 
+    <!-- Settings Button -->
+    <button id="settingsBtn" style="position: fixed; top: 10px; left: 10px; background: #444; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; z-index: 1000;">Settings</button>
+
+    <!-- Settings Overlay -->
+    <div id="settingsOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 15000;">
+        <div style="background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; text-align: center; color: white; max-width: 400px; margin: 0 20px;">
+            <h2 style="color: #00FFFF; margin-top: 0;">Settings</h2>
+            <!-- Display player name -->
+            <p id="playerNameDisplay" style="font-size: 16px; margin: 5px 0;">Player: Anonymous</p>
+            <label style="font-size: 16px;">
+                <input type="checkbox" id="muteMusicCheckbox"> Mute Music
+            </label>
+            <br><br>
+            <label style="font-size: 16px;">
+                Keyboard Sensitivity:
+                <input type="range" id="keyboardSensitivitySlider" min="5" max="20" value="10" style="vertical-align: middle;">
+                <span id="keyboardSensitivityValue" style="vertical-align: middle;">10</span>
+            </label>
+            <br><br>
+            <button id="closeSettingsBtn" style="padding: 8px 12px; border: none; border-radius: 5px; background: #444; color: white; cursor: pointer;">Close</button>
+        </div>
+    </div>
+
     <script type="module">
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const restartBtn = document.getElementById('restartBtn');
         const scoreDisplay = document.getElementById('scoreDisplay');
+        const bgMusic = document.getElementById('bgMusic');
+        let isMuted = false;
+        let gamePaused = false;
+        let gameLoopRequestID;  // To store our requestAnimationFrame ID
 
         // Grid settings
         const GRID_SIZE = 20;
@@ -389,6 +399,16 @@
                     spaceDown = true;
                 }
             }
+            if (e.key === "Escape") {
+                let settingsOverlay = document.getElementById('settingsOverlay');
+                if (settingsOverlay.style.display === "flex") {
+                    // If open, close settings (simulate clicking close)
+                    document.getElementById('closeSettingsBtn').click();
+                } else {
+                    // Otherwise, open settings
+                    document.getElementById('settingsBtn').click();
+                }
+            }
         });
 
         document.addEventListener('keyup', (e) => {
@@ -450,13 +470,11 @@
             });
         }
 
-        const bgMusic = document.getElementById('bgMusic');
-
         function startMusic() {
             if (bgMusic && bgMusic.paused) {
-                bgMusic.play()
-                    .then(() => console.log('Background music started successfully'))
-                    .catch(err => console.log('Background music play failed:', err));
+                bgMusic.play();
+                // Show message for initial track (folderTracks[0])
+                displayNowPlaying(folderTracks[0]);
             }
         }
 
@@ -464,6 +482,41 @@
         document.body.addEventListener('touchstart', startMusic, { once: true });
         document.body.addEventListener('click', startMusic, { once: true });
         document.addEventListener('keydown', startMusic, { once: true });
+
+        // Setup Background Music Track Cycling
+        const folderTracks = [
+            "SpaceTris Soundtrack/01 - Main Theme - Galactic Inferno.mp3",
+            "SpaceTris Soundtrack/02 - Cosmic Cascade.mp3",
+            "SpaceTris Soundtrack/03 - Pixel Invasion.mp3",
+            "SpaceTris Soundtrack/04 - Neon Blocks.mp3",
+            "SpaceTris Soundtrack/05 - Galactic Grid.mp3",
+            "SpaceTris Soundtrack/06 - Retro Orbit.mp3",
+            "SpaceTris Soundtrack/07 - Tetrimino Twilight.mp3",
+            "SpaceTris Soundtrack/08 - Alien Ascension.mp3",
+            "SpaceTris Soundtrack/09 - Arcade Anomaly.mp3",
+            "SpaceTris Soundtrack/10 - Synth Spacefall.mp3",
+            "SpaceTris Soundtrack/11 - Digital Drift.mp3"
+        ];
+        const finalLoopTrack = "background-music.mp3"; // The file to loop after track 11
+        let currentTrackIndex = 0;
+
+        bgMusic.addEventListener('ended', () => {
+            if (currentTrackIndex < folderTracks.length - 1) {
+                currentTrackIndex++;
+                let newTrack = folderTracks[currentTrackIndex];
+                document.getElementById('bgMusicSource').src = newTrack;
+                bgMusic.loop = false; // Ensure looping is off for these tracks
+                bgMusic.load();
+                bgMusic.play();
+                displayNowPlaying(newTrack);
+            } else {
+                document.getElementById('bgMusicSource').src = finalLoopTrack;
+                bgMusic.loop = true;
+                bgMusic.load();
+                bgMusic.play();
+                displayNowPlaying(finalLoopTrack);
+            }
+        });
 
         // Spawn invaders
         function spawnInvader() {
@@ -647,7 +700,7 @@
             console.log("Restarting game...");
             setTimeout(() => {
                 console.log("Calling gameLoop (via requestAnimationFrame)");
-                requestAnimationFrame(gameLoop);
+                gameLoopRequestID = requestAnimationFrame(gameLoop);
             }, 300);
         }
 
@@ -874,7 +927,7 @@
                 // Stop the loop by not requesting another frame and show the overlay.
                 document.getElementById('gameOverOverlay').style.display = 'flex';
             } else {
-                requestAnimationFrame(gameLoop);
+                gameLoopRequestID = requestAnimationFrame(gameLoop);
             }
         }
 
@@ -882,16 +935,6 @@
         updateScoreDisplay();
         restartBtn.addEventListener('click', resetGame);
         requestAnimationFrame(gameLoop);
-
-        const muteBtn = document.getElementById('muteBtn');
-        let isMuted = false;
-        muteBtn.addEventListener('click', () => {
-            if (bgMusic) {
-                isMuted = !isMuted;
-                bgMusic.muted = isMuted;
-                muteBtn.textContent = isMuted ? "Unmute" : "Mute";
-            }
-        });
 
         // Load Firebase asynchronously so that it doesn't block the game start.
         (async function loadFirebase() {
@@ -1075,6 +1118,87 @@
             ctx.fillStyle = '#000000';  // alien eyes
             ctx.fillRect(alien.x + 5, alien.y + 5, 4, 4);
             ctx.fillRect(alien.x + 11, alien.y + 5, 4, 4);
+        }
+
+        // Settings event listeners
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            pauseGame();
+            // Preload current sensitivity and mute settings
+            document.getElementById('keyboardSensitivitySlider').value = player.moveDelay;
+            document.getElementById('muteMusicCheckbox').checked = isMuted;
+            // Preload player's name from localStorage (or show "Anonymous")
+            let storedName = localStorage.getItem("playerName") || "Anonymous";
+            document.getElementById('playerNameDisplay').textContent = "Player: " + storedName;
+            document.getElementById('settingsOverlay').style.display = 'flex';
+        });
+
+        document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+            // Retrieve updated settings values
+            const slider = document.getElementById('keyboardSensitivitySlider');
+            const muteCheckbox = document.getElementById('muteMusicCheckbox');
+
+            // Update keyboard sensitivity (player moveDelay)
+            player.moveDelay = parseInt(slider.value);
+
+            // Update mute setting for the background music
+            isMuted = muteCheckbox.checked;
+            if (bgMusic) {
+                bgMusic.muted = isMuted;
+            }
+
+            // Hide the settings overlay and resume game
+            document.getElementById('settingsOverlay').style.display = 'none';
+            resumeGame();
+        });
+
+        function pauseGame() {
+            gamePaused = true;
+            cancelAnimationFrame(gameLoopRequestID);
+        }
+
+        function resumeGame() {
+            gamePaused = false;
+            gameLoopRequestID = requestAnimationFrame(gameLoop);
+        }
+
+        // Update sensitivity value display and game parameter in real time.
+        const sensitivitySlider = document.getElementById('keyboardSensitivitySlider');
+        const sensitivityDisplay = document.getElementById('keyboardSensitivityValue');
+        sensitivitySlider.addEventListener('input', () => {
+            sensitivityDisplay.textContent = sensitivitySlider.value;
+            // Lower moveDelay means faster movement. Use the slider value as moveDelay.
+            player.moveDelay = parseInt(sensitivitySlider.value);
+        });
+
+        // Helper function to display a temporary "Now Playing" message.
+        function displayNowPlaying(trackPath) {
+             // Extract the file name (remove folder path) and strip ".mp3"
+             let fileName = trackPath.split("/").pop();
+             let albumName = fileName.replace(".mp3", "");
+             let message = "Now Playing: " + albumName + " - Sebastien Bourgeois";
+ 
+             let msgElem = document.getElementById("nowPlayingMessage");
+             if (!msgElem) {
+                 msgElem = document.createElement("div");
+                 msgElem.id = "nowPlayingMessage";
+                 msgElem.style.position = "fixed";
+                 msgElem.style.top = "50px";
+                 msgElem.style.left = "50%";
+                 msgElem.style.transform = "translateX(-50%)";
+                 msgElem.style.color = "white";
+                 msgElem.style.fontFamily = "Arial, sans-serif";
+                 msgElem.style.background = "rgba(0, 0, 0, 0.5)";
+                 msgElem.style.padding = "5px 10px";
+                 msgElem.style.borderRadius = "5px";
+                 msgElem.style.zIndex = "2000";
+                 document.body.appendChild(msgElem);
+             }
+ 
+             msgElem.textContent = message;
+             msgElem.style.display = "block";
+             setTimeout(() => {
+                 msgElem.style.display = "none";
+             }, 5000);
         }
     </script>
 </body>
