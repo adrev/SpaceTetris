@@ -278,12 +278,18 @@
         }
 
         const bgMusic = document.getElementById('bgMusic');
-        // Attempt to play background music on first user interaction (touch)
-        document.body.addEventListener('touchstart', function () {
+
+        function startMusic() {
             if (bgMusic && bgMusic.paused) {
-                bgMusic.play().catch(err => console.log('Background music play failed:', err));
+                bgMusic.play()
+                    .then(() => console.log('Background music started successfully'))
+                    .catch(err => console.log('Background music play failed:', err));
             }
-        }, { once: true });
+        }
+
+        // Listen for both touch and click events
+        document.body.addEventListener('touchstart', startMusic, { once: true });
+        document.body.addEventListener('click', startMusic, { once: true });
 
         // Spawn invaders
         function spawnInvader() {
