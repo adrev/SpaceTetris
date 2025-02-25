@@ -111,7 +111,36 @@
                 background: #666;
             }
         }
+
+        /* New CSS for mobile joystick controls */
+        #joystickContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 1000;
+        }
+        #joystickZone {
+            width: 100px;
+            height: 100px;
+            border: 2px solid #FFF;
+            border-radius: 50%;
+            touch-action: none;
+        }
+        #mobileFireBtn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #FF0000;
+            color: white;
+            font-size: 18px;
+            border: none;
+        }
     </style>
+    <!-- Include NippleJS for the on-screen joystick -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
 </head>
 <body>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
@@ -128,17 +157,10 @@
         </ul>
     </div>
 
-    <!-- New Mobile Controls -->
-    <div id="mobileControls">
-        <div class="directional-buttons">
-            <button id="upBtn">↑</button>
-            <div>
-                <button id="leftBtn">←</button>
-                <button id="shootBtn">Fire</button>
-                <button id="rightBtn">→</button>
-            </div>
-            <button id="downBtn">↓</button>
-        </div>
+    <!-- New Mobile Joystick Controls -->
+    <div id="joystickContainer">
+        <div id="joystickZone"></div>
+        <button id="mobileFireBtn">Fire</button>
     </div>
 
     <script>
@@ -205,32 +227,50 @@
             if (e.key === ' ' || e.key === 'Spacebar') shootRequested = false;
         });
 
-        /* New: Touch event listeners for mobile controls */
-        const leftBtn = document.getElementById('leftBtn');
-        const rightBtn = document.getElementById('rightBtn');
-        const upBtn = document.getElementById('upBtn');
-        const downBtn = document.getElementById('downBtn');
-        const shootBtn = document.getElementById('shootBtn');
+        /* New: Mobile joystick controls using NippleJS */
+        const joystickContainer = document.getElementById('joystickContainer');
+        const joystickZone = document.getElementById('joystickZone');
+        const mobileFireBtn = document.getElementById('mobileFireBtn');
 
-        if (leftBtn) {
-            leftBtn.addEventListener('touchstart', (e) => { leftPressed = true; e.preventDefault(); });
-            leftBtn.addEventListener('touchend', (e) => { leftPressed = false; e.preventDefault(); });
+        if (joystickZone) {
+            const joystickManager = nipplejs.create({
+               zone: joystickZone,
+               mode: 'static',
+               position: { left: '50%', top: '50%' },
+               color: 'white'
+            });
+            joystickManager.on('move', function (evt, data) {
+                // Set a threshold to determine when movement is intentional.
+                const distance = data.distance;
+                const angle = data.angle.degree;
+                if (distance > 10) { // you can adjust this threshold
+                    // Clear all direction flags before setting one:
+                    leftPressed = rightPressed = upPressed = downPressed = false;
+                    if (angle >= 45 && angle <= 135) {
+                        upPressed = true;
+                    } else if (angle >= 225 && angle <= 315) {
+                        downPressed = true;
+                    } else if (angle < 45 || angle > 315) {
+                        rightPressed = true;
+                    } else if (angle >= 135 && angle <= 225) {
+                        leftPressed = true;
+                    }
+                }
+            });
+            joystickManager.on('end', function () {
+                leftPressed = rightPressed = upPressed = downPressed = false;
+            });
         }
-        if (rightBtn) {
-            rightBtn.addEventListener('touchstart', (e) => { rightPressed = true; e.preventDefault(); });
-            rightBtn.addEventListener('touchend', (e) => { rightPressed = false; e.preventDefault(); });
-        }
-        if (upBtn) {
-            upBtn.addEventListener('touchstart', (e) => { upPressed = true; e.preventDefault(); });
-            upBtn.addEventListener('touchend', (e) => { upPressed = false; e.preventDefault(); });
-        }
-        if (downBtn) {
-            downBtn.addEventListener('touchstart', (e) => { downPressed = true; e.preventDefault(); });
-            downBtn.addEventListener('touchend', (e) => { downPressed = false; e.preventDefault(); });
-        }
-        if (shootBtn) {
-            shootBtn.addEventListener('touchstart', (e) => { shootRequested = true; e.preventDefault(); });
-            shootBtn.addEventListener('touchend', (e) => { shootRequested = false; e.preventDefault(); });
+
+        if (mobileFireBtn) {
+            mobileFireBtn.addEventListener('touchstart', (e) => { 
+                shootRequested = true; 
+                e.preventDefault(); 
+            });
+            mobileFireBtn.addEventListener('touchend', (e) => { 
+                shootRequested = false;
+                e.preventDefault(); 
+            });
         }
 
         // Spawn invaders
