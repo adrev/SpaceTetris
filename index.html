@@ -307,6 +307,50 @@
     </div>
 
     <script type="module">
+        // Import the functions from the Firebase SDKs.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics.js";
+        import { 
+            getDatabase, 
+            ref, 
+            push, 
+            set, 
+            query, 
+            onValue, 
+            orderByChild, 
+            limitToLast 
+        } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js";
+
+        // Your web app's Firebase configuration (using your provided credentials)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDv2Aow7VEUnFXglySeGG-EylH78UJVt7c",
+            authDomain: "spacetris-cc8ec.firebaseapp.com",
+            databaseURL: "https://spacetris-cc8ec-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "spacetris-cc8ec",
+            storageBucket: "spacetris-cc8ec.firebasestorage.app",
+            messagingSenderId: "866701367465",
+            appId: "1:866701367465:web:e5d22916bb27355cbdf1b8",
+            measurementId: "G-N8CXH11E8K"
+        };
+
+        // Initialize Firebase
+        const appFirebase = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(appFirebase);
+        const database = getDatabase(appFirebase);
+
+        // Expose Firebase database methods globally for use in other parts of your application.
+        window.database = database;
+        window.ref = ref;
+        window.push = push;
+        window.set = set;
+        window.query = query;
+        window.onValue = onValue;
+        window.orderByChild = orderByChild;
+        window.limitToLast = limitToLast;
+
+        // Now that Firebase is ready, you might call your function for fetching the public highscores.
+        getPublicHighscores();
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const restartBtn = document.getElementById('restartBtn');
@@ -950,53 +994,86 @@
         restartBtn.addEventListener('click', resetGame);
         requestAnimationFrame(gameLoop);
 
-        // Load Firebase asynchronously so that it doesn't block the game start.
-        (async function loadFirebase() {
-            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js");
-            const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics.js");
-            const {
-                getDatabase, ref, push, set,
-                query, onValue, orderByChild, limitToLast
-            } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js");
+        // Helper function to sanitize user input by escaping HTML characters.
+        function sanitize(input) {
+            return input.replace(/[&<>"'\/]/g, function(s) {
+                const entityMap = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;',
+                    '/': '&#x2F;'
+                };
+                return entityMap[s];
+            });
+        }
 
-            const firebaseConfig = {
-              apiKey: "AIzaSyDv2Aow7VEUnFXglySeGG-EylH78UJVt7c",
-              authDomain: "spacetris-cc8ec.firebaseapp.com",
-              databaseURL: "https://spacetris-cc8ec-default-rtdb.europe-west1.firebasedatabase.app",
-              projectId: "spacetris-cc8ec",
-              storageBucket: "spacetris-cc8ec.firebasestorage.app",
-              messagingSenderId: "866701367465",
-              appId: "1:866701367465:web:e5d22916bb27355cbdf1b8",
-              measurementId: "G-N8CXH11E8K"
-            };
-            const appFirebase = initializeApp(firebaseConfig);
-            const analytics = getAnalytics(appFirebase);
-
-            // Initialize Firebase database functions (using the original names).
-            window.database = getDatabase(appFirebase);
-            window.ref = ref;
-            window.push = push;
-            window.set = set;
-            window.query = query;
-            window.onValue = onValue;
-            window.orderByChild = orderByChild;
-            window.limitToLast = limitToLast;
-
-            // Now that Firebase is ready, fetch the public highscores.
-            getPublicHighscores();
-        })();
-
+        // Function to submit a score.
         function submitScore(score) {
             const nicknameInput = document.getElementById('nicknameInput');
             let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
-            // Sanitize the name to prevent XSS if someone submits malicious code.
             name = sanitize(name);
-            // Save the sanitized player's name for future sessions.
             localStorage.setItem("playerName", name);
-            // (Optional: add a fallback prompt if name is empty)
+          
+            // Convert score to a number. If it's not a number, log an error and return.
+            const numericScore = Number(score);
+            if (isNaN(numericScore)) {
+                console.error("Score is not a valid number. Raw value:", score);
+                return;
+            }
+            console.log("Verified numericScore:", numericScore, "Type:", typeof numericScore);
+          
             const highscoresRef = ref(window.database, 'highscores');
             const newScoreRef = push(highscoresRef);
-            set(newScoreRef, { name: name, score: score, timestamp: Date.now() });
+            const highscoreObj = { name: name, score: numericScore, timestamp: Date.now() };
+            console.log("Highscore object to write:", highscoreObj);
+            set(newScoreRef, highscoreObj)
+                .then(() => {
+                    console.log("Score successfully written to the database");
+                })
+                .catch((error) => {
+                    console.error("Error writing score:", error);
+                });
+          
+            console.log("Submitting score object:", highscoreObj);
+        }
+
+        // Function to fetch and display the public highscore list.
+        function getPublicHighscores() {
+            const highscoresQuery = query(ref(window.database, 'highscores'),
+                                          orderByChild('score'),
+                                          limitToLast(25));
+            onValue(highscoresQuery, (snapshot) => {
+                let scores = [];
+                console.log("Fetched highscores snapshot:", snapshot.val());
+                snapshot.forEach((childSnapshot) => {
+                    scores.push(childSnapshot.val());
+                });
+                // Sort scores in descending order.
+                scores.sort((a, b) => b.score - a.score);
+                window.topPublicScore = scores.length > 0 ? scores[0].score : 0;
+                if (scores.length === 0) {
+                    console.log("No highscores found in the database.");
+                }
+
+                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
+                publicHighscoreDisplay.innerHTML = ''; // Clear previous content
+
+                const header = document.createElement('h3');
+                header.textContent = 'Top 25 public scoreboard';
+                publicHighscoreDisplay.appendChild(header);
+
+                const list = document.createElement('ol');
+                scores.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.textContent = `${entry.name} - ${entry.score}`;
+                    list.appendChild(li);
+                });
+                publicHighscoreDisplay.appendChild(list);
+            }, (error) => {
+                console.error("Error fetching highscores:", error);
+            });
         }
 
         // On load, pre-populate the nickname input with the stored name (if available)
@@ -1207,39 +1284,6 @@
              setTimeout(() => {
                  msgElem.style.display = "none";
              }, 5000);
-        }
-
-        function getPublicHighscores() {
-            const highscoresQuery = query(ref(window.database, 'highscores'), orderByChild('score'), limitToLast(25));
-            onValue(highscoresQuery, (snapshot) => {
-                let scores = [];
-                console.log("Fetched highscores snapshot:", snapshot.val()); // Log raw data
-                snapshot.forEach((childSnapshot) => {
-                    scores.push(childSnapshot.val());
-                });
-                // Sort in descending order & update top score
-                scores.sort((a, b) => b.score - a.score);
-                window.topPublicScore = scores.length > 0 ? scores[0].score : 0;
-                if (scores.length === 0) {
-                    console.log("No highscores found in the database.");
-                }
-
-                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
-                publicHighscoreDisplay.innerHTML = ''; // Clear previous content
-                const header = document.createElement('h3');
-                header.textContent = 'Top 25 public scoreboard';
-                publicHighscoreDisplay.appendChild(header);
-
-                const list = document.createElement('ol');
-                scores.forEach(entry => {
-                    const li = document.createElement('li');
-                    li.textContent = `${entry.name} - ${entry.score}`;
-                    list.appendChild(li);
-                });
-                publicHighscoreDisplay.appendChild(list);
-            }, (error) => {
-                console.error("Error fetching highscores:", error);
-            });
         }
     </script>
 </body>
