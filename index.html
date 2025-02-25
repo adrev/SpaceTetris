@@ -244,6 +244,18 @@
             margin-bottom: 10px;
             color: white;
         }
+
+        /* On mobile screens, let the leaderboard be in the normal document flow */
+        @media (max-width: 600px) {
+            #publicHighscoreDisplay {
+                position: static;          /* Not fixed */
+                width: 90%;                /* Use most of the screen width */
+                max-height: none;          /* No forced max height */
+                margin-top: 20px;          /* Spacing above */
+                margin-bottom: 20px;       /* Spacing below */
+                transform: none;           /* Remove any vertical translation */
+            }
+        }
     </style>
     <!-- Include NippleJS for the on-screen joystick -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -807,7 +819,7 @@
                 } else {
                     window.topPublicScore = 0;
                 }
-                let html = '<h3>Public Highscores</h3><ol>';
+                let html = '<h3>Top 25 public scoreboard</h3><ol>';
                 scores.forEach(entry => {
                     html += `<li>${entry.name} - ${entry.score}</li>`;
                 });
