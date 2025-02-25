@@ -16,6 +16,7 @@
             margin: 0;
             background: #111;
             gap: 20px;
+            overflow: hidden;
         }
         #restartBtn {
             padding: 10px 20px;
@@ -151,6 +152,98 @@
             cursor: pointer;
             z-index: 1000;
         }
+
+        /* User Profile / Nickname Input styling */
+        #userProfile {
+            margin-top: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #nicknameInput {
+            padding: 5px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* Game Over Overlay styling */
+        #gameOverOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none; /* hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        #gameOverOverlay #userProfile {
+            background: #222;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+
+        /* Leaderboard styling */
+        #publicHighscoreDisplay {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 15px;
+            border-radius: 8px;
+            position: fixed;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            width: 300px;     /* Fixed width */
+            max-height: 80vh;
+            overflow-y: auto; /* Scroll within the leaderboard if content exceeds max-height */
+            z-index: 1000;    /* Ensure it's above the game canvas, if needed */
+        }
+
+        #publicHighscoreDisplay h3 {
+            font-size: 20px;
+            color: #00FFFF;
+            margin-top: 0;
+        }
+
+        #publicHighscoreDisplay ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        #publicHighscoreDisplay li {
+            margin: 5px 0;
+        }
+
+        /* Styling for the submit score button to match overall design */
+        #submitScoreBtn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        #submitScoreBtn:hover {
+            background: #666;
+        }
+
+        /* Improve overlay text styling */
+        #gameOverOverlay p {
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: white;
+        }
     </style>
     <!-- Include NippleJS for the on-screen joystick -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -158,7 +251,16 @@
 <body>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <div id="scoreDisplay">Score: 0 | High Score: 0</div>
+    <!-- Game Over Overlay (hidden at first) -->
+    <div id="gameOverOverlay" style="display: none;">
+       <div id="userProfile">
+           <p>Game Over! Enter your nickname to submit your score:</p>
+           <input type="text" id="nicknameInput" placeholder="Enter your nickname" />
+           <button id="submitScoreBtn">Submit Score</button>
+       </div>
+    </div>
     <button id="restartBtn">Restart Game</button>
+    <div id="congratsMessage" style="color: yellow; font-family: Arial, sans-serif; font-size: 18px; text-align: center;"></div>
     <div id="instructions">
         <h3>How to Play SpaceTris</h3>
         <ul>
@@ -169,6 +271,8 @@
             <li><strong>Challenge:</strong> Blocks fall faster as your score increases—stay sharp!</li>
         </ul>
     </div>
+    <!-- Leaderboard: Top 100 scores -->
+    <div id="publicHighscoreDisplay"></div>
     <!-- 8-bit space inspired background music -->
     <audio id="bgMusic" loop>
        <source src="background-music.mp3" type="audio/mpeg">
@@ -184,7 +288,7 @@
     </div>
     <button id="mobileFireBtn">Fire</button>
 
-    <script>
+    <script type="module">
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const restartBtn = document.getElementById('restartBtn');
@@ -393,6 +497,30 @@
 
         // Reset game state
         function resetGame() {
+            // Hide the overlay just in case.
+            document.getElementById('gameOverOverlay').style.display = 'none';
+
+            // Store the finished score before resetting.
+            let finishedScore = score;
+            // Save old personal highscore.
+            let oldPersonalHighscore = highScore;
+            // Update personal best if beaten.
+            if (finishedScore > highScore) {
+                highScore = finishedScore;
+                localStorage.setItem('highScore', highScore);
+            }
+
+            // Build congratulatory message(s).
+            let message = "";
+            if (finishedScore > oldPersonalHighscore) {
+                message += "Congratulations new Personal highscore!";
+            }
+            if (finishedScore > (window.topPublicScore || 0)) {
+                message += (message ? " " : "") + "Congratulations new Public highscore!";
+            }
+            document.getElementById('congratsMessage').innerText = message;
+
+            // Reset game state...
             player = {
                 x: 9 * GRID_SIZE,
                 y: 27 * GRID_SIZE,
@@ -404,17 +532,18 @@
             invaders = [];
             bullets = [];
             blocks = [];
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('highScore', highScore);
-            }
             score = 0;
             gameOver = false;
             timeElapsed = 0;
             blockSpawnRate = 0.01;
             baseBlockSpeed = 1;
             updateScoreDisplay();
-            gameLoop();
+            attachSubmitScoreListener();
+            console.log("Restarting game...");
+            setTimeout(() => {
+                console.log("Calling gameLoop (via requestAnimationFrame)");
+                requestAnimationFrame(gameLoop);
+            }, 300);
         }
 
         // Update score display
@@ -469,6 +598,7 @@
 
         // Game loop
         function gameLoop(timestamp) {
+            console.log("gameLoop running, gameOver =", gameOver);
             if (gameOver) {
                 ctx.fillStyle = 'white';
                 ctx.font = '40px Arial';
@@ -590,7 +720,12 @@
             if (Math.random() < 0.02) spawnInvader();
             if (Math.random() < blockSpawnRate) spawnBlock();
 
-            requestAnimationFrame(gameLoop);
+            if (gameOver) {
+                // Stop the loop by not requesting another frame and show the overlay.
+                document.getElementById('gameOverOverlay').style.display = 'flex';
+            } else {
+                requestAnimationFrame(gameLoop);
+            }
         }
 
         // Start game and handle restart
@@ -606,6 +741,149 @@
                 bgMusic.muted = isMuted;
                 muteBtn.textContent = isMuted ? "Unmute" : "Mute";
             }
+        });
+
+        // Load Firebase asynchronously so that it doesn't block the game start.
+        (async function loadFirebase() {
+            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js");
+            const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics.js");
+            const {
+                getDatabase, ref, push, set,
+                query, onValue, orderByChild, limitToLast
+            } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js");
+
+            const firebaseConfig = {
+              apiKey: "AIzaSyDv2Aow7VEUnFXglySeGG-EylH78UJVt7c",
+              authDomain: "spacetris-cc8ec.firebaseapp.com",
+              databaseURL: "https://spacetris-cc8ec-default-rtdb.europe-west1.firebasedatabase.app",
+              projectId: "spacetris-cc8ec",
+              storageBucket: "spacetris-cc8ec.firebasestorage.app",
+              messagingSenderId: "866701367465",
+              appId: "1:866701367465:web:e5d22916bb27355cbdf1b8",
+              measurementId: "G-N8CXH11E8K"
+            };
+            const appFirebase = initializeApp(firebaseConfig);
+            const analytics = getAnalytics(appFirebase);
+            // Assign the database instance to a global variable.
+            window.database = getDatabase(appFirebase);
+            // Expose the Firebase functions on the global scope so they can be used in getPublicHighscores.
+            window.ref = ref;
+            window.push = push;
+            window.set = set;
+            window.query = query;
+            window.onValue = onValue;
+            window.orderByChild = orderByChild;
+            window.limitToLast = limitToLast;
+
+            // Now that Firebase is loaded, start listening for public highscores.
+            getPublicHighscores();
+        })();
+
+        // Submit score to public highscores
+        function submitScore(score) {
+            const nicknameInput = document.getElementById('nicknameInput');
+            let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
+            // Save the player's name for future sessions
+            localStorage.setItem("playerName", name);
+            // (Optional: add a fallback prompt if name is empty)
+            const highscoresRef = ref(window.database, 'highscores');
+            const newScoreRef = push(highscoresRef);
+            set(newScoreRef, { name: name, score: score, timestamp: Date.now() });
+        }
+
+        // Update public highscores display in real-time
+        function getPublicHighscores() {
+            const highscoresQuery = query(ref(window.database, 'highscores'), orderByChild('score'), limitToLast(25));
+            onValue(highscoresQuery, (snapshot) => {
+                let scores = [];
+                snapshot.forEach((childSnapshot) => {
+                    scores.push(childSnapshot.val());
+                });
+                // Sort in descending order
+                scores.sort((a, b) => b.score - a.score);
+                // Store the current highest public score globally.
+                if (scores.length > 0) {
+                    window.topPublicScore = scores[0].score;
+                } else {
+                    window.topPublicScore = 0;
+                }
+                let html = '<h3>Public Highscores</h3><ol>';
+                scores.forEach(entry => {
+                    html += `<li>${entry.name} - ${entry.score}</li>`;
+                });
+                html += '</ol>';
+                document.getElementById('publicHighscoreDisplay').innerHTML = html;
+            });
+        }
+
+        // On load, pre-populate the nickname input with the stored name (if available)
+        const storedName = localStorage.getItem("playerName");
+        if (storedName) {
+            document.getElementById('nicknameInput').value = storedName;
+        }
+
+        // Helper function to restore the Game Over overlay to its default state
+        // and attach the submit score button event listener.
+        function attachSubmitScoreListener() {
+            const userProfile = document.getElementById('userProfile');
+            // Restore the default HTML for the overlay.
+            userProfile.innerHTML = `
+                <p>Game Over! Enter your nickname to submit your score:</p>
+                <input type="text" id="nicknameInput" placeholder="Enter your nickname" />
+                <button id="submitScoreBtn">Submit Score</button>
+            `;
+            // Pre-populate the nickname input if a name was stored.
+            const storedName = localStorage.getItem("playerName");
+            if (storedName) {
+                document.getElementById('nicknameInput').value = storedName;
+            }
+            // Attach the event listener.
+            document.getElementById('submitScoreBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log("Submit button clicked, starting countdown...");
+                // Disable to avoid multiple clicks.
+                const btn = document.getElementById('submitScoreBtn');
+                btn.disabled = true;
+
+                // Retrieve player's name (from input or storage).
+                const nicknameInput = document.getElementById('nicknameInput');
+                let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
+                // Save the player's name.
+                localStorage.setItem("playerName", name);
+                console.log("Submitting score for:", name, "Score:", score);
+
+                // Submit the score.
+                submitScore(score);
+
+                // Ensure the overlay is visible.
+                const overlay = document.getElementById('gameOverOverlay');
+                overlay.style.display = 'flex';
+
+                // Replace the overlay content with a big countdown message.
+                const cp = document.getElementById('userProfile');
+                cp.innerHTML = '<div id="countdownMessage" style="font-size: 72px; font-weight: bold; color: #00FFFF;">3</div>';
+
+                // Fixed countdown timing (total duration 1.5 seconds).
+                setTimeout(() => {
+                    document.getElementById('countdownMessage').textContent = "2";
+                }, 375);
+                setTimeout(() => {
+                    document.getElementById('countdownMessage').textContent = "1";
+                }, 750);
+                setTimeout(() => {
+                    document.getElementById('countdownMessage').textContent = "GO!";
+                }, 1125);
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    btn.disabled = false;
+                    resetGame();
+                }, 1500);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM fully loaded. Attaching submitScoreBtn listener via attachSubmitScoreListener().");
+            attachSubmitScoreListener();
         });
     </script>
 </body>
