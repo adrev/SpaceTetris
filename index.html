@@ -318,7 +318,7 @@
             width: 2 * GRID_SIZE,
             height: GRID_SIZE,
             moveCooldown: 0,
-            moveDelay: 6
+            moveDelay: 10
         };
 
         let invaders = [];
@@ -609,7 +609,7 @@
                 width: 2 * GRID_SIZE,
                 height: GRID_SIZE,
                 moveCooldown: 0,
-                moveDelay: 6
+                moveDelay: 10
             };
             invaders = [];
             bullets = [];
@@ -678,6 +678,19 @@
             ctx.fillRect(x + width / 4, y, width / 2, height);
         }
 
+        // New helper function – returns false if the intended new position collides
+        // with any blocks that have stopped (i.e. settled at the bottom)
+        function canMove(newX, newY) {
+            const newRect = { x: newX, y: newY, width: player.width, height: player.height };
+            for (let i = 0; i < blocks.length; i++) {
+                // Only consider blocks that are stopped (i.e. have landed)
+                if (blocks[i].stopped && checkCollision(newRect, blocks[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         // Game loop
         function gameLoop(timestamp) {
             console.log("gameLoop running, gameOver =", gameOver);
@@ -696,20 +709,32 @@
             if (player.moveCooldown > 0) player.moveCooldown--;
             if (player.moveCooldown <= 0) {
                 if (leftPressed && player.x > 0) {
-                    player.x -= GRID_SIZE;
-                    player.moveCooldown = player.moveDelay;
+                    let newX = player.x - GRID_SIZE;
+                    if (canMove(newX, player.y)) {
+                        player.x = newX;
+                        player.moveCooldown = player.moveDelay;
+                    }
                 }
                 if (rightPressed && player.x < canvas.width - player.width) {
-                    player.x += GRID_SIZE;
-                    player.moveCooldown = player.moveDelay;
+                    let newX = player.x + GRID_SIZE;
+                    if (canMove(newX, player.y)) {
+                        player.x = newX;
+                        player.moveCooldown = player.moveDelay;
+                    }
                 }
                 if (upPressed && player.y > 0) {
-                    player.y -= GRID_SIZE;
-                    player.moveCooldown = player.moveDelay;
+                    let newY = player.y - GRID_SIZE;
+                    if (canMove(player.x, newY)) {
+                        player.y = newY;
+                        player.moveCooldown = player.moveDelay;
+                    }
                 }
                 if (downPressed && player.y < canvas.height - player.height) {
-                    player.y += GRID_SIZE;
-                    player.moveCooldown = player.moveDelay;
+                    let newY = player.y + GRID_SIZE;
+                    if (canMove(player.x, newY)) {
+                        player.y = newY;
+                        player.moveCooldown = player.moveDelay;
+                    }
                 }
             }
             if (cheatMode) {
@@ -785,7 +810,7 @@
                     }
                 }
 
-                if (!cheatMode && checkCollision(block, player)) {
+                if (!cheatMode && !block.stopped && checkCollision(block, player)) {
                     gameOver = true;
                 }
             });
