@@ -244,13 +244,6 @@
             margin-bottom: 10px;
             color: white;
         }
-
-        @media (min-width: 600px) {
-            #joystickContainer,
-            #mobileFireBtn {
-                display: none;
-            }
-        }
     </style>
     <!-- Include NippleJS for the on-screen joystick -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -894,17 +887,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOM fully loaded.");
-            // Check if the device is mobile.
-            if (isMobileDevice()) {
-                // Show mobile controls on phones.
-                document.getElementById('joystickContainer').style.display = 'block';
-                document.getElementById('mobileFireBtn').style.display = 'block';
-            } else {
-                // Hide mobile controls on non-mobile devices.
-                document.getElementById('joystickContainer').style.display = 'none';
-                document.getElementById('mobileFireBtn').style.display = 'none';
-            }
+            console.log("DOM fully loaded. Showing mobile controls on all devices.");
+            // Always show mobile controls, regardless of device
+            document.getElementById('joystickContainer').style.display = 'block';
+            document.getElementById('mobileFireBtn').style.display = 'block';
 
             console.log("Attaching submitScoreBtn listener via attachSubmitScoreListener().");
             attachSubmitScoreListener();
