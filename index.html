@@ -194,16 +194,16 @@
             background: rgba(0, 0, 0, 0.7);
             color: white;
             font-family: Arial, sans-serif;
-            padding: 15px;
+            padding: 10px;
             border-radius: 8px;
             position: fixed;
             top: 50%;
             right: 10px;
             transform: translateY(-50%);
-            width: 300px;     /* Fixed width */
-            max-height: 80vh;
-            overflow-y: auto; /* Scroll within the leaderboard if content exceeds max-height */
-            z-index: 1000;    /* Ensure it's above the game canvas, if needed */
+            width: 250px;     /* Reduced width */
+            max-height: 70vh;
+            overflow-y: auto;
+            z-index: 1000;
         }
 
         #publicHighscoreDisplay h3 {
@@ -248,12 +248,12 @@
         /* On mobile screens, let the leaderboard be in the normal document flow */
         @media (max-width: 600px) {
             #publicHighscoreDisplay {
-                position: static;          /* Not fixed */
-                width: 90%;                /* Use most of the screen width */
-                max-height: none;          /* No forced max height */
-                margin-top: 20px;          /* Spacing above */
-                margin-bottom: 20px;       /* Spacing below */
-                transform: none;           /* Remove any vertical translation */
+                position: static;
+                width: 80%;                /* Reduced width */
+                max-height: none;
+                margin-top: 20px;
+                margin-bottom: 20px;
+                transform: none;
             }
         }
     </style>
@@ -344,6 +344,8 @@
         let upPressed = false;
         let downPressed = false;
         let shootRequested = false;
+        let cheatMode = false;
+        let spaceDown = false;
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'a') leftPressed = true;
@@ -352,16 +354,29 @@
             if (e.key === 'ArrowDown' || e.key === 's') downPressed = true;
             if (e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
-                shootRequested = true;
+                // Only trigger a new shot if space is not already held down
+                if (!spaceDown) {
+                    if (e.shiftKey) {
+                        cheatMode = true;
+                    } else {
+                        shootRequested = true;
+                    }
+                    spaceDown = true;
+                }
             }
         });
 
         document.addEventListener('keyup', (e) => {
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                spaceDown = false;
+            }
+            if (e.key === 'Shift') {
+                cheatMode = false;
+            }
             if (e.key === 'ArrowLeft' || e.key === 'a') leftPressed = false;
             if (e.key === 'ArrowRight' || e.key === 'd') rightPressed = false;
             if (e.key === 'ArrowUp' || e.key === 'w') upPressed = false;
             if (e.key === 'ArrowDown' || e.key === 's') downPressed = false;
-            if (e.key === ' ' || e.key === 'Spacebar') shootRequested = false;
         });
 
         /* New: Mobile joystick controls using NippleJS */
@@ -456,12 +471,42 @@
 
         // Shoot bullet
         function shoot() {
+            let beamCount = 1;
+            if (score >= 1000) {
+                beamCount = 3;
+            } else if (score >= 500) {
+                beamCount = 2;
+            }
+
+            for (let i = 0; i < beamCount; i++) {
+                let offsetAmount = 0;
+                if (beamCount === 2) {
+                    // For two beams, fire one slightly left and one slightly right.
+                    offsetAmount = (i === 0) ? -5 : 5;
+                } else if (beamCount === 3) {
+                    // For three beams, left, center, and right.
+                    offsetAmount = [ -10, 0, 10 ][i];
+                }
+
+                const bullet = {
+                    x: player.x + player.width / 2 - 2 + offsetAmount,
+                    y: player.y,
+                    width: 4,
+                    height: 4,
+                    speed: 10
+                };
+                bullets.push(bullet);
+            }
+        }
+
+        // Shoot cheat bullet
+        function shootCheat() {
             const bullet = {
                 x: player.x + player.width / 2 - 2,
                 y: player.y,
                 width: 4,
-                height: 10,
-                speed: 5
+                height: 4,
+                speed: 10
             };
             bullets.push(bullet);
         }
@@ -642,7 +687,9 @@
                     player.moveCooldown = player.moveDelay;
                 }
             }
-            if (shootRequested) {
+            if (cheatMode) {
+                shootCheat();
+            } else if (shootRequested) {
                 shoot();
                 shootRequested = false;
             }
@@ -681,7 +728,7 @@
                 invader.y += invader.speed;
                 drawInvader(invader.x, invader.y, invader.width, invader.height);
 
-                if (checkCollision(invader, player)) {
+                if (!cheatMode && checkCollision(invader, player)) {
                     gameOver = true;
                 }
             });
@@ -713,7 +760,7 @@
                     }
                 }
 
-                if (checkCollision(block, player)) {
+                if (!cheatMode && checkCollision(block, player)) {
                     gameOver = true;
                 }
             });
