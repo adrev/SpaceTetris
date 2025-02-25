@@ -27,7 +27,7 @@
             border: none;
             border-radius: 5px;
         }
-        #restartBtn:hover {
+        #resta  rtBtn:hover {
             background: #666;
         }
         #scoreDisplay {
@@ -273,7 +273,7 @@
     <div id="publicHighscoreDisplay"></div>
     <!-- 8-bit space inspired background music -->
     <audio id="bgMusic">
-       <source id="bgMusicSource" src="SpaceTris Soundtrack/01.mp3" type="audio/mpeg">
+       <source id="bgMusicSource" src="SpaceTris_Soundtrack/01 - Main Theme - Galactic Inferno.mp3" type="audio/mpeg">
        Your browser does not support the audio element.
     </audio>
 
@@ -471,31 +471,40 @@
         }
 
         function startMusic() {
-            if (bgMusic && bgMusic.paused) {
-                bgMusic.play();
-                // Show message for initial track (folderTracks[0])
-                displayNowPlaying(folderTracks[0]);
-            }
+             if (bgMusic && bgMusic.paused) {
+                 bgMusic.play()
+                     .then(() => {
+                         console.log("Background music started successfully, current track:", bgMusic.currentSrc);
+                         // Show message for initial track (folderTracks[0])
+                         displayNowPlaying(folderTracks[0]);
+                     })
+                     .catch(err => {
+                         console.error("Error starting background music:", err);
+                     });
+             } else {
+                 console.log("startMusic() called but bgMusic is not paused or not available.");
+             }
         }
 
         // Listen for touch, click, and keyboard events to start background music
-        document.body.addEventListener('touchstart', startMusic, { once: true });
         document.body.addEventListener('click', startMusic, { once: true });
-        document.addEventListener('keydown', startMusic, { once: true });
+        document.body.addEventListener('keydown', startMusic, { once: true });
+        document.body.addEventListener('mousedown', startMusic, { once: true });
+        document.body.addEventListener('touchstart', startMusic, { once: true });
 
         // Setup Background Music Track Cycling
         const folderTracks = [
-            "SpaceTris Soundtrack/01 - Main Theme - Galactic Inferno.mp3",
-            "SpaceTris Soundtrack/02 - Cosmic Cascade.mp3",
-            "SpaceTris Soundtrack/03 - Pixel Invasion.mp3",
-            "SpaceTris Soundtrack/04 - Neon Blocks.mp3",
-            "SpaceTris Soundtrack/05 - Galactic Grid.mp3",
-            "SpaceTris Soundtrack/06 - Retro Orbit.mp3",
-            "SpaceTris Soundtrack/07 - Tetrimino Twilight.mp3",
-            "SpaceTris Soundtrack/08 - Alien Ascension.mp3",
-            "SpaceTris Soundtrack/09 - Arcade Anomaly.mp3",
-            "SpaceTris Soundtrack/10 - Synth Spacefall.mp3",
-            "SpaceTris Soundtrack/11 - Digital Drift.mp3"
+            "SpaceTris_Soundtrack/01 - Main Theme - Galactic Inferno.mp3",
+            "SpaceTris_Soundtrack/02 - Cosmic Cascade.mp3",
+            "SpaceTris_Soundtrack/03 - Pixel Invasion.mp3",
+            "SpaceTris_Soundtrack/04 - Neon Blocks.mp3",
+            "SpaceTris_Soundtrack/05 - Galactic Grid.mp3",
+            "SpaceTris_Soundtrack/06 - Retro Orbit.mp3",
+            "SpaceTris_Soundtrack/07 - Tetrimino Twilight.mp3",
+            "SpaceTris_Soundtrack/08 - Alien Ascension.mp3",
+            "SpaceTris_Soundtrack/09 - Arcade Anomaly.mp3",
+            "SpaceTris_Soundtrack/10 - Synth Spacefall.mp3",
+            "SpaceTris_Soundtrack/11 - Digital Drift.mp3"
         ];
         const finalLoopTrack = "background-music.mp3"; // The file to loop after track 11
         let currentTrackIndex = 0;
@@ -516,6 +525,11 @@
                 bgMusic.play();
                 displayNowPlaying(finalLoopTrack);
             }
+        });
+
+        // Log errors if the background music fails to load
+        bgMusic.addEventListener('error', (e) => {
+            console.error("Error loading background music:", e, bgMusic.error);
         });
 
         // Spawn invaders
@@ -1000,12 +1014,19 @@
                 } else {
                     window.topPublicScore = 0;
                 }
-                let html = '<h3>Top 25 public scoreboard</h3><ol>';
+                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
+                publicHighscoreDisplay.innerHTML = ''; // Clear any existing content
+                const header = document.createElement('h3');
+                header.textContent = 'Top 25 public scoreboard';
+                publicHighscoreDisplay.appendChild(header);
+
+                const list = document.createElement('ol');
                 scores.forEach(entry => {
-                    html += `<li>${entry.name} - ${entry.score}</li>`;
+                    const li = document.createElement('li');
+                    li.textContent = `${entry.name} - ${entry.score}`;
+                    list.appendChild(li);
                 });
-                html += '</ol>';
-                document.getElementById('publicHighscoreDisplay').innerHTML = html;
+                publicHighscoreDisplay.appendChild(list);
             });
         }
 
@@ -1019,12 +1040,23 @@
         // and attach the submit score button event listener.
         function attachSubmitScoreListener() {
             const userProfile = document.getElementById('userProfile');
-            // Restore the default HTML for the overlay.
-            userProfile.innerHTML = `
-                <p>Game Over! Enter your nickname to submit your score:</p>
-                <input type="text" id="nicknameInput" placeholder="Enter your nickname" />
-                <button id="submitScoreBtn">Submit Score</button>
-            `;
+            // Restore the default content for the overlay safely.
+            userProfile.innerHTML = '';  // Clear existing content
+            const p = document.createElement('p');
+            p.textContent = 'Game Over! Enter your nickname to submit your score:';
+            userProfile.appendChild(p);
+
+            const input = document.createElement('input');
+            input.type = "text";
+            input.id = "nicknameInput";
+            input.placeholder = "Enter your nickname";
+            userProfile.appendChild(input);
+
+            const btn = document.createElement('button');
+            btn.id = "submitScoreBtn";
+            btn.textContent = "Submit Score";
+            userProfile.appendChild(btn);
+
             // Pre-populate the nickname input if a name was stored.
             const storedName = localStorage.getItem("playerName");
             if (storedName) {
@@ -1054,7 +1086,7 @@
 
                 // Replace the overlay content with a big countdown message.
                 const cp = document.getElementById('userProfile');
-                cp.innerHTML = '<div id="countdownMessage" style="font-size: 72px; font-weight: bold; color: #00FFFF;">3</div>';
+                cp.textContent = '<div id="countdownMessage" style="font-size: 72px; font-weight: bold; color: #00FFFF;">3</div>';
 
                 // Fixed countdown timing (total duration 1.5 seconds).
                 setTimeout(() => {
