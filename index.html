@@ -137,6 +137,20 @@
             font-size: 24px;
             border: none;
         }
+
+        /* Mute button styling */
+        #muteBtn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+        }
     </style>
     <!-- Include NippleJS for the on-screen joystick -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -160,6 +174,9 @@
        <source src="background-music.mp3" type="audio/mpeg">
        Your browser does not support the audio element.
     </audio>
+
+    <!-- Mute Button -->
+    <button id="muteBtn">Mute</button>
 
     <!-- New Mobile Controls -->
     <div id="joystickContainer">
@@ -287,9 +304,10 @@
             }
         }
 
-        // Listen for both touch and click events
+        // Listen for touch, click, and keyboard events to start background music
         document.body.addEventListener('touchstart', startMusic, { once: true });
         document.body.addEventListener('click', startMusic, { once: true });
+        document.addEventListener('keydown', startMusic, { once: true });
 
         // Spawn invaders
         function spawnInvader() {
@@ -579,6 +597,16 @@
         updateScoreDisplay();
         restartBtn.addEventListener('click', resetGame);
         requestAnimationFrame(gameLoop);
+
+        const muteBtn = document.getElementById('muteBtn');
+        let isMuted = false;
+        muteBtn.addEventListener('click', () => {
+            if (bgMusic) {
+                isMuted = !isMuted;
+                bgMusic.muted = isMuted;
+                muteBtn.textContent = isMuted ? "Unmute" : "Mute";
+            }
+        });
     </script>
 </body>
 </html>
