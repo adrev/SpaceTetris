@@ -497,30 +497,53 @@
         // Shoot bullet
         function shoot() {
             let beamCount = 1;
+            let bulletsPerBeam = 1;
+
+            // Determine the number of beams and bullets per beam based on score thresholds:
             if (score >= 1000) {
-                beamCount = 3;
+                beamCount = 5;
+                bulletsPerBeam = 16;
+            } else if (score >= 750) {
+                beamCount = 4;
+                bulletsPerBeam = 8;
             } else if (score >= 500) {
+                beamCount = 3;
+                bulletsPerBeam = 4;
+            } else if (score >= 250) {
                 beamCount = 2;
+                bulletsPerBeam = 2;
             }
 
-            for (let i = 0; i < beamCount; i++) {
-                let offsetAmount = 0;
-                if (beamCount === 2) {
-                    // For two beams, fire one slightly left and one slightly right.
-                    offsetAmount = (i === 0) ? -5 : 5;
-                } else if (beamCount === 3) {
-                    // For three beams, left, center, and right.
-                    offsetAmount = [ -10, 0, 10 ][i];
-                }
+            // Calculate base offsets for each beam so they fan out horizontally
+            let beamOffsets = [];
+            if (beamCount === 1) {
+                beamOffsets.push(0);
+            } else if (beamCount === 2) {
+                beamOffsets.push(-5, 5);
+            } else if (beamCount === 3) {
+                beamOffsets.push(-10, 0, 10);
+            } else if (beamCount === 4) {
+                beamOffsets.push(-15, -5, 5, 15);
+            } else if (beamCount === 5) {
+                beamOffsets.push(-20, -10, 0, 10, 20);
+            }
 
-                const bullet = {
-                    x: player.x + player.width / 2 - 2 + offsetAmount,
-                    y: player.y,
-                    width: 4,
-                    height: 4,
-                    speed: 10
-                };
-                bullets.push(bullet);
+            // For each beam, fire the specified number of bullets with additional inner spread.
+            for (let i = 0; i < beamCount; i++) {
+                for (let j = 0; j < bulletsPerBeam; j++) {
+                    // Compute an inner offset: for multiple bullets in the same beam, space them out evenly.
+                    let innerOffset = (bulletsPerBeam > 1 ? (j - (bulletsPerBeam - 1) / 2) * 2 : 0);
+                    let totalOffset = beamOffsets[i] + innerOffset;
+
+                    const bullet = {
+                        x: player.x + player.width / 2 - 2 + totalOffset,
+                        y: player.y,
+                        width: 4,
+                        height: 4,
+                        speed: 10
+                    };
+                    bullets.push(bullet);
+                }
             }
         }
 
