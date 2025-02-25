@@ -954,6 +954,7 @@
         (async function loadFirebase() {
             const { initializeApp } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js");
             const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics.js");
+            const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js");
             const {
                 getDatabase, ref, push, set,
                 query, onValue, orderByChild, limitToLast
@@ -971,9 +972,18 @@
             };
             const appFirebase = initializeApp(firebaseConfig);
             const analytics = getAnalytics(appFirebase);
-            // Assign the database instance to a global variable.
+
+            // Secure Firebase Authentication: sign in anonymously
+            const auth = getAuth(appFirebase);
+            signInAnonymously(auth)
+                .then(() => {
+                    console.log("Signed in anonymously");
+                })
+                .catch((error) => {
+                    console.error("Anonymous sign-in failed:", error);
+                });
+
             window.database = getDatabase(appFirebase);
-            // Expose the Firebase functions on the global scope so they can be used in getPublicHighscores.
             window.ref = ref;
             window.push = push;
             window.set = set;
