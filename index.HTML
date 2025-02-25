@@ -63,6 +63,54 @@
         #instructions li strong {
             color: #FFFF00;
         }
+        #mobileControls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border-top: 1px solid #333;
+        }
+        .directional-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .directional-buttons button {
+            padding: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        /* New CSS for mobile controls */
+        #mobileControls {
+            display: none; /* Hidden on larger screens */
+        }
+        @media (max-width: 600px) {
+            #mobileControls {
+                display: block;
+                text-align: center;
+                margin-top: 20px;
+            }
+            #mobileControls .directional-buttons button {
+                font-size: 24px;
+                padding: 10px;
+                margin: 5px;
+                background: #444;
+                color: white;
+                border: none;
+                border-radius: 5px;
+            }
+            #mobileControls .directional-buttons button:hover {
+                background: #666;
+            }
+        }
     </style>
 </head>
 <body>
@@ -78,6 +126,19 @@
             <li><strong>Game Over:</strong> Ends if you hit an enemy/block or if blocks overflow the screen.</li>
             <li><strong>Challenge:</strong> Blocks fall faster as your score increases—stay sharp!</li>
         </ul>
+    </div>
+
+    <!-- New Mobile Controls -->
+    <div id="mobileControls">
+        <div class="directional-buttons">
+            <button id="upBtn">↑</button>
+            <div>
+                <button id="leftBtn">←</button>
+                <button id="shootBtn">Fire</button>
+                <button id="rightBtn">→</button>
+            </div>
+            <button id="downBtn">↓</button>
+        </div>
     </div>
 
     <script>
@@ -143,6 +204,34 @@
             if (e.key === 'ArrowDown' || e.key === 's') downPressed = false;
             if (e.key === ' ' || e.key === 'Spacebar') shootRequested = false;
         });
+
+        /* New: Touch event listeners for mobile controls */
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+        const upBtn = document.getElementById('upBtn');
+        const downBtn = document.getElementById('downBtn');
+        const shootBtn = document.getElementById('shootBtn');
+
+        if (leftBtn) {
+            leftBtn.addEventListener('touchstart', (e) => { leftPressed = true; e.preventDefault(); });
+            leftBtn.addEventListener('touchend', (e) => { leftPressed = false; e.preventDefault(); });
+        }
+        if (rightBtn) {
+            rightBtn.addEventListener('touchstart', (e) => { rightPressed = true; e.preventDefault(); });
+            rightBtn.addEventListener('touchend', (e) => { rightPressed = false; e.preventDefault(); });
+        }
+        if (upBtn) {
+            upBtn.addEventListener('touchstart', (e) => { upPressed = true; e.preventDefault(); });
+            upBtn.addEventListener('touchend', (e) => { upPressed = false; e.preventDefault(); });
+        }
+        if (downBtn) {
+            downBtn.addEventListener('touchstart', (e) => { downPressed = true; e.preventDefault(); });
+            downBtn.addEventListener('touchend', (e) => { downPressed = false; e.preventDefault(); });
+        }
+        if (shootBtn) {
+            shootBtn.addEventListener('touchstart', (e) => { shootRequested = true; e.preventDefault(); });
+            shootBtn.addEventListener('touchend', (e) => { shootRequested = false; e.preventDefault(); });
+        }
 
         // Spawn invaders
         function spawnInvader() {
