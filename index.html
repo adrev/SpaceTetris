@@ -155,6 +155,11 @@
             <li><strong>Challenge:</strong> Blocks fall faster as your score increases—stay sharp!</li>
         </ul>
     </div>
+    <!-- 8-bit space inspired background music -->
+    <audio id="bgMusic" loop>
+       <source src="8bit-space-music.mp3" type="audio/mpeg">
+       Your browser does not support the audio element.
+    </audio>
 
     <!-- New Mobile Controls -->
     <div id="joystickContainer">
@@ -271,6 +276,14 @@
                 e.preventDefault(); 
             });
         }
+
+        const bgMusic = document.getElementById('bgMusic');
+        // Attempt to play background music on first user interaction (touch)
+        document.body.addEventListener('touchstart', function () {
+            if (bgMusic && bgMusic.paused) {
+                bgMusic.play().catch(err => console.log('Background music play failed:', err));
+            }
+        }, { once: true });
 
         // Spawn invaders
         function spawnInvader() {
