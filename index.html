@@ -986,11 +986,26 @@
             getPublicHighscores();
         })();
 
-        // Submit score to public highscores
+        // Helper function to sanitize user input by escaping HTML characters.
+        function sanitize(input) {
+             return input.replace(/[&<>"'\/]/g, function(s) {
+                 const entityMap = {
+                     '&': '&amp;',
+                     '<': '&lt;',
+                     '>': '&gt;',
+                     '"': '&quot;',
+                     "'": '&#39;',
+                     '/': '&#x2F;'
+                 };
+                 return entityMap[s];
+             });
+
         function submitScore(score) {
             const nicknameInput = document.getElementById('nicknameInput');
             let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
-            // Save the player's name for future sessions
+            // Sanitize the name to prevent XSS if someone submits malicious code.
+            name = sanitize(name);
+            // Save the sanitized player's name for future sessions.
             localStorage.setItem("playerName", name);
             // (Optional: add a fallback prompt if name is empty)
             const highscoresRef = ref(window.database, 'highscores');
