@@ -954,7 +954,6 @@
         (async function loadFirebase() {
             const { initializeApp } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js");
             const { getAnalytics } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-analytics.js");
-            const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js");
             const {
                 getDatabase, ref, push, set,
                 query, onValue, orderByChild, limitToLast
@@ -973,16 +972,7 @@
             const appFirebase = initializeApp(firebaseConfig);
             const analytics = getAnalytics(appFirebase);
 
-            // Secure Firebase Authentication: sign in anonymously
-            const auth = getAuth(appFirebase);
-            signInAnonymously(auth)
-                .then(() => {
-                    console.log("Signed in anonymously");
-                })
-                .catch((error) => {
-                    console.error("Anonymous sign-in failed:", error);
-                });
-
+            // Initialize Firebase database functions (using the original names).
             window.database = getDatabase(appFirebase);
             window.ref = ref;
             window.push = push;
@@ -992,24 +982,9 @@
             window.orderByChild = orderByChild;
             window.limitToLast = limitToLast;
 
-            // Now that Firebase is loaded, start listening for public highscores.
+            // Now that Firebase is ready, fetch the public highscores.
             getPublicHighscores();
         })();
-
-        // Helper function to sanitize user input by escaping HTML characters.
-        function sanitize(input) {
-             return input.replace(/[&<>"'\/]/g, function(s) {
-                 const entityMap = {
-                     '&': '&amp;',
-                     '<': '&lt;',
-                     '>': '&gt;',
-                     '"': '&quot;',
-                     "'": '&#39;',
-                     '/': '&#x2F;'
-                 };
-                 return entityMap[s];
-             });
-        }
 
         function submitScore(score) {
             const nicknameInput = document.getElementById('nicknameInput');
@@ -1022,38 +997,6 @@
             const highscoresRef = ref(window.database, 'highscores');
             const newScoreRef = push(highscoresRef);
             set(newScoreRef, { name: name, score: score, timestamp: Date.now() });
-        }
-
-        // Update public highscores display in real-time
-        function getPublicHighscores() {
-            const highscoresQuery = query(ref(window.database, 'highscores'), orderByChild('score'), limitToLast(25));
-            onValue(highscoresQuery, (snapshot) => {
-                let scores = [];
-                snapshot.forEach((childSnapshot) => {
-                    scores.push(childSnapshot.val());
-                });
-                // Sort in descending order
-                scores.sort((a, b) => b.score - a.score);
-                // Store the current highest public score globally.
-                if (scores.length > 0) {
-                    window.topPublicScore = scores[0].score;
-                } else {
-                    window.topPublicScore = 0;
-                }
-                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
-                publicHighscoreDisplay.innerHTML = ''; // Clear any existing content
-                const header = document.createElement('h3');
-                header.textContent = 'Top 25 public scoreboard';
-                publicHighscoreDisplay.appendChild(header);
-
-                const list = document.createElement('ol');
-                scores.forEach(entry => {
-                    const li = document.createElement('li');
-                    li.textContent = `${entry.name} - ${entry.score}`;
-                    list.appendChild(li);
-                });
-                publicHighscoreDisplay.appendChild(list);
-            });
         }
 
         // On load, pre-populate the nickname input with the stored name (if available)
@@ -1264,6 +1207,39 @@
              setTimeout(() => {
                  msgElem.style.display = "none";
              }, 5000);
+        }
+
+        function getPublicHighscores() {
+            const highscoresQuery = query(ref(window.database, 'highscores'), orderByChild('score'), limitToLast(25));
+            onValue(highscoresQuery, (snapshot) => {
+                let scores = [];
+                console.log("Fetched highscores snapshot:", snapshot.val()); // Log raw data
+                snapshot.forEach((childSnapshot) => {
+                    scores.push(childSnapshot.val());
+                });
+                // Sort in descending order & update top score
+                scores.sort((a, b) => b.score - a.score);
+                window.topPublicScore = scores.length > 0 ? scores[0].score : 0;
+                if (scores.length === 0) {
+                    console.log("No highscores found in the database.");
+                }
+
+                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
+                publicHighscoreDisplay.innerHTML = ''; // Clear previous content
+                const header = document.createElement('h3');
+                header.textContent = 'Top 25 public scoreboard';
+                publicHighscoreDisplay.appendChild(header);
+
+                const list = document.createElement('ol');
+                scores.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.textContent = `${entry.name} - ${entry.score}`;
+                    list.appendChild(li);
+                });
+                publicHighscoreDisplay.appendChild(list);
+            }, (error) => {
+                console.error("Error fetching highscores:", error);
+            });
         }
     </script>
 </body>
