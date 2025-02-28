@@ -1,7 +1,28 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpaceTris</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- Firebase configuration placeholder - Replace with your own values in config.js -->
+    <div id="firebase-config" 
+         data-api-key="" 
+         data-auth-domain="" 
+         data-project-id="" 
+         data-storage-bucket="" 
+         data-messaging-sender-id="" 
+         data-app-id="" 
+         data-database-url=""
+         style="display: none;">
+    </div>
+    
+    <!-- Load Firebase configuration from external file -->
+    <script src="config.js"></script>
+    
     <style>
         canvas {
             border: 1px solid white;
@@ -242,6 +263,61 @@
                 transform: none;
             }
         }
+
+        /* Power-up styling */
+        .power-up-icon {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Power-up status display */
+        #powerUpStatus {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .active-power-up {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .power-up-timer {
+            width: 50px;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .power-up-timer-fill {
+            height: 100%;
+            background: #00FFFF;
+        }
+        
+        /* Mobile adjustments for power-up status */
+        @media (max-width: 600px) {
+            #powerUpStatus {
+                top: 50px;
+            }
+        }
     </style>
     <!-- Include NippleJS for the on-screen joystick -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.7.3/nipplejs.min.js"></script>
@@ -249,6 +325,8 @@
 <body>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <div id="scoreDisplay">Score: 0 | High Score: 0</div>
+    <!-- Power-up status display -->
+    <div id="powerUpStatus"></div>
     <!-- Game Over Overlay (hidden at first) -->
     <div id="gameOverOverlay" style="display: none;">
        <div id="userProfile">
@@ -281,7 +359,7 @@
     <div id="joystickContainer">
         <div id="joystickZone"></div>
     </div>
-    <button id="mobileFireBtn">Fire</button>
+        <button id="mobileFireBtn">Fire</button>
 
     <!-- Settings Button -->
     <button id="settingsBtn" style="position: fixed; top: 10px; left: 10px; background: #444; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; z-index: 1000;">Settings</button>
@@ -338,7 +416,7 @@
         const analytics = getAnalytics(appFirebase);
         const database = getDatabase(appFirebase);
 
-        // Expose Firebase database methods globally for use in other parts of your application.
+        // Make Firebase functions available globally
         window.database = database;
         window.ref = ref;
         window.push = push;
@@ -348,7 +426,10 @@
         window.orderByChild = orderByChild;
         window.limitToLast = limitToLast;
 
-        // Now that Firebase is ready, you might call your function for fetching the public highscores.
+        // Log that Firebase is initialized
+        console.log("Firebase initialized successfully");
+        
+        // Now that Firebase is ready, fetch the public highscores
         getPublicHighscores();
 
         const canvas = document.getElementById('gameCanvas');
@@ -386,6 +467,39 @@
         let blockSpawnRate = 0.01;
         let baseBlockSpeed = 1;
 
+        // Power-ups system
+        let powerUps = [];
+        let activePowerUps = {
+            shield: { active: false, duration: 0, maxDuration: 300 },
+            spreadShot: { active: false, duration: 0, maxDuration: 300 },
+            slowMotion: { active: false, duration: 0, maxDuration: 300 }
+        };
+        
+        // Power-up types and their properties
+        const powerUpTypes = [
+            { 
+                type: 'shield', 
+                color: '#00FFFF', 
+                symbol: 'S', 
+                effect: () => activatePowerUp('shield'),
+                description: 'Shield: Temporary invincibility'
+            },
+            { 
+                type: 'spreadShot', 
+                color: '#FF00FF', 
+                symbol: 'B', 
+                effect: () => activatePowerUp('spreadShot'),
+                description: 'Spread Shot: Fire multiple bullets'
+            },
+            { 
+                type: 'slowMotion', 
+                color: '#FFFF00', 
+                symbol: 'T', 
+                effect: () => activatePowerUp('slowMotion'),
+                description: 'Slow Motion: Slows down enemies and blocks'
+            }
+        ];
+
         // Tetris shapes with specific colors
         const shapes = [
             { shape: [[1,1,1,1]], color: '#00FFFF' },
@@ -393,82 +507,93 @@
             { shape: [[1,1,1],[0,1,0]], color: '#FF00FF' }
         ];
 
-        // Game controls
-        let leftPressed = false;
-        let rightPressed = false;
-        let upPressed = false;
-        let downPressed = false;
-        let shootRequested = false;
-        let cheatMode = false;
-        let spaceDown = false;
-
-        // Clear all control flags if the window loses focus.
-        window.addEventListener('blur', () => {
-            leftPressed = false;
-            rightPressed = false;
-            upPressed = false;
-            downPressed = false;
-            shootRequested = false;
-            spaceDown = false;
-            cheatMode = false;
-        });
-
-        // Also reset flags when the page becomes hidden (e.g. user switches tab)
+        // ===== INPUT HANDLING AND CONTROLS =====
+        
+        // Control state variables
+        let controlState = {
+            left: false,
+            right: false,
+            up: false,
+            down: false,
+            shoot: false,
+            spaceDown: false,
+            cheatMode: false
+        };
+        
+        // Keyboard sensitivity (can be adjusted in settings)
+        let keyboardSensitivity = 10;
+        
+        // Clear all control flags when window loses focus or page becomes hidden
+        function resetControlState() {
+            controlState.left = false;
+            controlState.right = false;
+            controlState.up = false;
+            controlState.down = false;
+            controlState.shoot = false;
+            controlState.spaceDown = false;
+            controlState.cheatMode = false;
+        }
+        
+        // Event listeners for focus and visibility changes
+        window.addEventListener('blur', resetControlState);
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                leftPressed = false;
-                rightPressed = false;
-                upPressed = false;
-                downPressed = false;
-                shootRequested = false;
-                spaceDown = false;
-                cheatMode = false;
+                resetControlState();
             }
         });
-
+        
+        // Keyboard event handlers
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a') leftPressed = true;
-            if (e.key === 'ArrowRight' || e.key === 'd') rightPressed = true;
-            if (e.key === 'ArrowUp' || e.key === 'w') upPressed = true;
-            if (e.key === 'ArrowDown' || e.key === 's') downPressed = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a') controlState.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') controlState.right = true;
+            if (e.key === 'ArrowUp' || e.key === 'w') controlState.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's') controlState.down = true;
+            
             if (e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
                 // Only trigger a new shot if space is not already held down
-                if (!spaceDown) {
+                if (!controlState.spaceDown) {
                     if (e.shiftKey) {
-                        cheatMode = true;
+                        controlState.cheatMode = true;
                     } else {
-                        shootRequested = true;
+                        controlState.shoot = true;
                     }
-                    spaceDown = true;
+                    controlState.spaceDown = true;
                 }
             }
+            
             if (e.key === "Escape") {
-                let settingsOverlay = document.getElementById('settingsOverlay');
-                if (settingsOverlay.style.display === "flex") {
-                    // If open, close settings (simulate clicking close)
-                    document.getElementById('closeSettingsBtn').click();
-                } else {
-                    // Otherwise, open settings
-                    document.getElementById('settingsBtn').click();
-                }
+                toggleSettingsMenu();
             }
         });
 
         document.addEventListener('keyup', (e) => {
             if (e.key === ' ' || e.key === 'Spacebar') {
-                spaceDown = false;
+                controlState.spaceDown = false;
             }
             if (e.key === 'Shift') {
-                cheatMode = false;
+                controlState.cheatMode = false;
             }
-            if (e.key === 'ArrowLeft' || e.key === 'a') leftPressed = false;
-            if (e.key === 'ArrowRight' || e.key === 'd') rightPressed = false;
-            if (e.key === 'ArrowUp' || e.key === 'w') upPressed = false;
-            if (e.key === 'ArrowDown' || e.key === 's') downPressed = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') controlState.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') controlState.right = false;
+            if (e.key === 'ArrowUp' || e.key === 'w') controlState.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's') controlState.down = false;
         });
-
-        /* New: Mobile joystick controls using NippleJS */
+        
+        // Toggle settings menu
+        function toggleSettingsMenu() {
+            let settingsOverlay = document.getElementById('settingsOverlay');
+            if (settingsOverlay.style.display === "flex") {
+                // If open, close settings
+                document.getElementById('closeSettingsBtn').click();
+            } else {
+                // Otherwise, open settings
+                document.getElementById('settingsBtn').click();
+            }
+        }
+        
+        // Initialize mobile controls
+        function initializeMobileControls() {
         const joystickContainer = document.getElementById('joystickContainer');
         const joystickZone = document.getElementById('joystickZone');
         const mobileFireBtn = document.getElementById('mobileFireBtn');
@@ -480,101 +605,309 @@
                position: { left: '50%', top: '50%' },
                color: 'white'
             });
+                
             joystickManager.on('move', function (evt, data) {
-                // Set a threshold to determine when movement is intentional.
+                    // Set a threshold to determine when movement is intentional
                 const distance = data.distance;
                 const angle = data.angle.degree;
-                if (distance > 10) { // you can adjust this threshold
-                    // Clear all direction flags before setting one:
-                    leftPressed = rightPressed = upPressed = downPressed = false;
+                    
+                    if (distance > 10) { // Adjustable threshold
+                        // Clear all direction flags before setting one
+                        controlState.left = controlState.right = controlState.up = controlState.down = false;
+                        
+                        // Determine direction based on angle
                     if (angle >= 45 && angle <= 135) {
-                        upPressed = true;
+                            controlState.up = true;
                     } else if (angle >= 225 && angle <= 315) {
-                        downPressed = true;
+                            controlState.down = true;
                     } else if (angle < 45 || angle > 315) {
-                        rightPressed = true;
+                            controlState.right = true;
                     } else if (angle >= 135 && angle <= 225) {
-                        leftPressed = true;
+                            controlState.left = true;
                     }
                 }
             });
+                
             joystickManager.on('end', function () {
-                leftPressed = rightPressed = upPressed = downPressed = false;
+                    controlState.left = controlState.right = controlState.up = controlState.down = false;
             });
         }
 
         if (mobileFireBtn) {
             mobileFireBtn.addEventListener('touchstart', (e) => { 
-                shootRequested = true; 
+                    controlState.shoot = true; 
                 e.preventDefault(); 
             });
+                
             mobileFireBtn.addEventListener('touchend', (e) => { 
-                shootRequested = false;
+                    controlState.shoot = false;
                 e.preventDefault(); 
             });
+            }
+        }
+        
+        // Handle player movement based on control state
+        function handlePlayerMovement() {
+            if (player.moveCooldown > 0) {
+                player.moveCooldown--;
+                return;
+            }
+            
+            // Apply movement based on control state
+            if (controlState.left && player.x > 0) {
+                let newX = player.x - GRID_SIZE;
+                if (canMove(newX, player.y)) {
+                    player.x = newX;
+                    player.moveCooldown = player.moveDelay;
+                }
+            }
+            
+            if (controlState.right && player.x < canvas.width - player.width) {
+                let newX = player.x + GRID_SIZE;
+                if (canMove(newX, player.y)) {
+                    player.x = newX;
+                    player.moveCooldown = player.moveDelay;
+                }
+            }
+            
+            if (controlState.up && player.y > 0) {
+                let newY = player.y - GRID_SIZE;
+                if (canMove(player.x, newY)) {
+                    player.y = newY;
+                    player.moveCooldown = player.moveDelay;
+                }
+            }
+            
+            if (controlState.down && player.y < canvas.height - player.height) {
+                let newY = player.y + GRID_SIZE;
+                if (canMove(player.x, newY)) {
+                    player.y = newY;
+                    player.moveCooldown = player.moveDelay;
+                }
+            }
+        }
+        
+        // Handle shooting based on control state
+        function handleShooting() {
+            if (controlState.cheatMode) {
+                shootCheat();
+            } else if (controlState.shoot) {
+                shoot();
+                controlState.shoot = false;
+            }
         }
 
-        function startMusic() {
-             if (bgMusic && bgMusic.paused) {
-                 bgMusic.play()
-                     .then(() => {
-                         console.log("Background music started successfully, current track:", bgMusic.currentSrc);
-                         // Show message for initial track (folderTracks[0])
-                         displayNowPlaying(folderTracks[0]);
-                     })
-                     .catch(err => {
-                         console.error("Error starting background music:", err);
-                     });
-             } else {
-                 console.log("startMusic() called but bgMusic is not paused or not available.");
-             }
+        // ===== AUDIO SYSTEM =====
+        
+        // Audio state and configuration
+        let audioSystem = {
+            initialized: false,
+            muted: false,
+            currentTrackIndex: 0,
+            tracks: [
+                "SpaceTris_Soundtrack/01 - Main Theme - Galactic Inferno.mp3",
+                "SpaceTris_Soundtrack/02 - Cosmic Cascade.mp3",
+                "SpaceTris_Soundtrack/03 - Pixel Invasion.mp3",
+                "SpaceTris_Soundtrack/04 - Neon Blocks.mp3",
+                "SpaceTris_Soundtrack/05 - Galactic Grid.mp3",
+                "SpaceTris_Soundtrack/06 - Retro Orbit.mp3",
+                "SpaceTris_Soundtrack/07 - Tetrimino Twilight.mp3",
+                "SpaceTris_Soundtrack/08 - Alien Ascension.mp3",
+                "SpaceTris_Soundtrack/09 - Arcade Anomaly.mp3",
+                "SpaceTris_Soundtrack/10 - Synth Spacefall.mp3",
+                "SpaceTris_Soundtrack/11 - Digital Drift.mp3"
+            ],
+            finalLoopTrack: "background-music.mp3"
+        };
+        
+        // Initialize the audio system
+        function initializeAudioSystem() {
+            if (audioSystem.initialized) return;
+            
+            const bgMusic = document.getElementById('bgMusic');
+            if (!bgMusic) {
+                console.error("Background music element not found");
+                return;
+            }
+            
+            // Set up event listeners for the audio element
+            bgMusic.addEventListener('ended', handleTrackEnded);
+            bgMusic.addEventListener('error', (e) => {
+                console.error("Error loading background music:", e, bgMusic.error);
+            });
+            
+            // Set up the first track
+            document.getElementById('bgMusicSource').src = audioSystem.tracks[0];
+            bgMusic.load();
+            
+            // Set up interaction listeners to start audio (browser requirement)
+            setupAudioInteractionListeners();
+            
+            audioSystem.initialized = true;
+            console.log("Audio system initialized");
         }
-
-        // Listen for touch, click, and keyboard events to start background music
-        document.body.addEventListener('click', startMusic, { once: true });
-        document.body.addEventListener('keydown', startMusic, { once: true });
-        document.body.addEventListener('mousedown', startMusic, { once: true });
-        document.body.addEventListener('touchstart', startMusic, { once: true });
-
-        // Setup Background Music Track Cycling
-        const folderTracks = [
-            "SpaceTris_Soundtrack/01 - Main Theme - Galactic Inferno.mp3",
-            "SpaceTris_Soundtrack/02 - Cosmic Cascade.mp3",
-            "SpaceTris_Soundtrack/03 - Pixel Invasion.mp3",
-            "SpaceTris_Soundtrack/04 - Neon Blocks.mp3",
-            "SpaceTris_Soundtrack/05 - Galactic Grid.mp3",
-            "SpaceTris_Soundtrack/06 - Retro Orbit.mp3",
-            "SpaceTris_Soundtrack/07 - Tetrimino Twilight.mp3",
-            "SpaceTris_Soundtrack/08 - Alien Ascension.mp3",
-            "SpaceTris_Soundtrack/09 - Arcade Anomaly.mp3",
-            "SpaceTris_Soundtrack/10 - Synth Spacefall.mp3",
-            "SpaceTris_Soundtrack/11 - Digital Drift.mp3"
-        ];
-        const finalLoopTrack = "background-music.mp3"; // The file to loop after track 11
-        let currentTrackIndex = 0;
-
-        bgMusic.addEventListener('ended', () => {
-            if (currentTrackIndex < folderTracks.length - 1) {
-                currentTrackIndex++;
-                let newTrack = folderTracks[currentTrackIndex];
+        
+        // Handle track ended event - play next track or loop final track
+        function handleTrackEnded() {
+            const bgMusic = document.getElementById('bgMusic');
+            
+            if (audioSystem.currentTrackIndex < audioSystem.tracks.length - 1) {
+                // Move to next track in sequence
+                audioSystem.currentTrackIndex++;
+                const newTrack = audioSystem.tracks[audioSystem.currentTrackIndex];
+                
                 document.getElementById('bgMusicSource').src = newTrack;
-                bgMusic.loop = false; // Ensure looping is off for these tracks
+                bgMusic.loop = false;
                 bgMusic.load();
-                bgMusic.play();
-                displayNowPlaying(newTrack);
+                
+                // Play the track and show now playing message
+                const playPromise = bgMusic.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            displayNowPlaying(newTrack);
+                        })
+                        .catch(err => {
+                            console.error("Error playing next track:", err);
+                        });
+                }
             } else {
-                document.getElementById('bgMusicSource').src = finalLoopTrack;
+                // Switch to final looping track
+                document.getElementById('bgMusicSource').src = audioSystem.finalLoopTrack;
                 bgMusic.loop = true;
                 bgMusic.load();
-                bgMusic.play();
-                displayNowPlaying(finalLoopTrack);
+                
+                // Play the final track and show now playing message
+                const playPromise = bgMusic.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            displayNowPlaying(audioSystem.finalLoopTrack);
+                        })
+                        .catch(err => {
+                            console.error("Error playing final loop track:", err);
+                        });
+                }
             }
-        });
-
-        // Log errors if the background music fails to load
-        bgMusic.addEventListener('error', (e) => {
-            console.error("Error loading background music:", e, bgMusic.error);
-        });
+        }
+        
+        // Set up event listeners to start audio on user interaction (required by browsers)
+        function setupAudioInteractionListeners() {
+            const interactionEvents = ['click', 'keydown', 'mousedown', 'touchstart'];
+            
+            const startAudioOnInteraction = () => {
+                startMusic();
+                
+                // Remove all event listeners after first interaction
+                interactionEvents.forEach(event => {
+                    document.body.removeEventListener(event, startAudioOnInteraction);
+                });
+            };
+            
+            // Add event listeners for user interaction
+            interactionEvents.forEach(event => {
+                document.body.addEventListener(event, startAudioOnInteraction, { once: true });
+            });
+        }
+        
+        // Start or resume background music
+        function startMusic() {
+            const bgMusic = document.getElementById('bgMusic');
+            
+            if (!bgMusic) {
+                console.error("Background music element not found");
+                return;
+            }
+            
+            if (bgMusic.paused && !audioSystem.muted) {
+                console.log("Attempting to play background music after user interaction");
+                
+                // Attempt to play the music
+                const playPromise = bgMusic.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log("Background music started successfully, current track:", bgMusic.currentSrc);
+                            displayNowPlaying(audioSystem.tracks[audioSystem.currentTrackIndex]);
+                        })
+                        .catch(err => {
+                            console.error("Error starting background music:", err);
+                            // Don't try to auto-restart - we'll wait for the next user interaction
+                            console.log("Music will start on next user interaction");
+                            
+                            // If we get a NotAllowedError, we'll try again on the next user interaction
+                            if (err.name === "NotAllowedError") {
+                                console.log("Audio autoplay was blocked. Will try again on next user interaction.");
+                            }
+                        });
+                }
+            } else {
+                console.log("Music is already playing or is muted");
+            }
+        }
+        
+        // Toggle mute state
+        function toggleMute(mute) {
+            const bgMusic = document.getElementById('bgMusic');
+            
+            if (!bgMusic) return;
+            
+            audioSystem.muted = mute;
+            bgMusic.muted = mute;
+            
+            console.log(mute ? "Music muted" : "Music unmuted");
+        }
+        
+        // Reset audio system for new game
+        function initializeOrResetAudioSystem() {
+            // If we're starting a new game and music isn't playing, try to start it
+            // But only if we've had user interaction (don't force it)
+            const bgMusic = document.getElementById('bgMusic');
+            
+            if (bgMusic && bgMusic.paused && !audioSystem.muted) {
+                // Don't automatically try to play here - it might fail
+                // Instead, make sure the audio is loaded and ready to play
+                // when the user interacts next
+                if (document.getElementById('bgMusicSource').src !== audioSystem.tracks[0]) {
+                    document.getElementById('bgMusicSource').src = audioSystem.tracks[0];
+                    audioSystem.currentTrackIndex = 0;
+                    bgMusic.load();
+                    console.log("Audio reset and ready for next user interaction");
+                }
+            }
+        }
+        
+        // Helper function to display a temporary "Now Playing" message
+        function displayNowPlaying(trackPath) {
+            // Extract the file name (remove folder path) and strip ".mp3"
+            let fileName = trackPath.split("/").pop();
+            let albumName = fileName.replace(".mp3", "");
+            let message = "Now Playing: " + albumName + " - Sebastien Bourgeois";
+            
+            let msgElem = document.getElementById("nowPlayingMessage");
+            if (!msgElem) {
+                msgElem = document.createElement("div");
+                msgElem.id = "nowPlayingMessage";
+                msgElem.style.position = "fixed";
+                msgElem.style.top = "50px";
+                msgElem.style.left = "50%";
+                msgElem.style.transform = "translateX(-50%)";
+                msgElem.style.color = "white";
+                msgElem.style.fontFamily = "Arial, sans-serif";
+                msgElem.style.background = "rgba(0, 0, 0, 0.5)";
+                msgElem.style.padding = "5px 10px";
+                msgElem.style.borderRadius = "5px";
+                msgElem.style.zIndex = "2000";
+                document.body.appendChild(msgElem);
+            }
+            
+            msgElem.textContent = message;
+            msgElem.style.display = "block";
+            setTimeout(() => {
+                msgElem.style.display = "none";
+            }, 5000);
+        }
 
         // Spawn invaders
         function spawnInvader() {
@@ -605,24 +938,283 @@
             blocks.push(block);
         }
 
+        // Spawn a power-up
+        function spawnPowerUp() {
+            const powerUpType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+            const powerUp = {
+                x: Math.floor(Math.random() * (GRID_WIDTH - 1)) * GRID_SIZE,
+                y: 0,
+                width: GRID_SIZE,
+                height: GRID_SIZE,
+                type: powerUpType.type,
+                color: powerUpType.color,
+                symbol: powerUpType.symbol,
+                effect: powerUpType.effect,
+                speed: 1
+            };
+            powerUps.push(powerUp);
+        }
+
+        // Activate a power-up
+        function activatePowerUp(type) {
+            activePowerUps[type].active = true;
+            activePowerUps[type].duration = activePowerUps[type].maxDuration;
+            
+            // Visual feedback when power-up is activated
+            const powerUpMessage = document.createElement('div');
+            powerUpMessage.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} activated!`;
+            powerUpMessage.style.position = 'absolute';
+            powerUpMessage.style.left = '50%';
+            powerUpMessage.style.top = '100px';
+            powerUpMessage.style.transform = 'translateX(-50%)';
+            powerUpMessage.style.color = getPowerUpColor(type);
+            powerUpMessage.style.fontFamily = 'Arial, sans-serif';
+            powerUpMessage.style.fontSize = '24px';
+            powerUpMessage.style.fontWeight = 'bold';
+            powerUpMessage.style.textShadow = '0 0 10px rgba(255, 255, 255, 0.7)';
+            document.body.appendChild(powerUpMessage);
+            
+            // Fade out and remove the message
+            setTimeout(() => {
+                powerUpMessage.style.transition = 'opacity 1s';
+                powerUpMessage.style.opacity = '0';
+                setTimeout(() => {
+                    document.body.removeChild(powerUpMessage);
+                }, 1000);
+            }, 1000);
+            
+            updatePowerUpStatusDisplay();
+        }
+        
+        // Get power-up color based on type
+        function getPowerUpColor(type) {
+            const powerUpType = powerUpTypes.find(p => p.type === type);
+            return powerUpType ? powerUpType.color : '#FFFFFF';
+        }
+        
+        // Update power-up status display
+        function updatePowerUpStatusDisplay() {
+            const statusDisplay = document.getElementById('powerUpStatus');
+            statusDisplay.innerHTML = '';
+            
+            let hasActivePowerUps = false;
+            
+            for (const [type, data] of Object.entries(activePowerUps)) {
+                if (data.active) {
+                    hasActivePowerUps = true;
+                    const powerUpDiv = document.createElement('div');
+                    powerUpDiv.className = 'active-power-up';
+                    
+                    const label = document.createElement('span');
+                    label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                    label.style.color = getPowerUpColor(type);
+                    
+                    const timer = document.createElement('div');
+                    timer.className = 'power-up-timer';
+                    
+                    const timerFill = document.createElement('div');
+                    timerFill.className = 'power-up-timer-fill';
+                    timerFill.style.width = `${(data.duration / data.maxDuration) * 100}%`;
+                    timerFill.style.background = getPowerUpColor(type);
+                    
+                    timer.appendChild(timerFill);
+                    powerUpDiv.appendChild(label);
+                    powerUpDiv.appendChild(timer);
+                    statusDisplay.appendChild(powerUpDiv);
+                }
+            }
+            
+            statusDisplay.style.display = hasActivePowerUps ? 'block' : 'none';
+        }
+
+        // ===== COLLISION DETECTION SYSTEM =====
+
+        // Collision detection types
+        const COLLISION_TYPES = {
+            PLAYER_INVADER: 'player-invader',
+            PLAYER_BLOCK: 'player-block',
+            PLAYER_POWERUP: 'player-powerup',
+            BULLET_INVADER: 'bullet-invader',
+            BULLET_BLOCK: 'bullet-block',
+            BLOCK_BLOCK: 'block-block',
+            BLOCK_BOTTOM: 'block-bottom'
+        };
+
+        // Unified collision detection function
+        function detectCollision(obj1, obj2) {
+            return (obj1.x < obj2.x + obj2.width &&
+                    obj1.x + obj1.width > obj2.x &&
+                    obj1.y < obj2.y + obj2.height &&
+                    obj1.y + obj1.height > obj2.y);
+        }
+
+        // Handle collision between two objects based on their types
+        function handleCollision(type, obj1, obj2, index1, index2) {
+            switch(type) {
+                case COLLISION_TYPES.PLAYER_INVADER:
+                    if (!controlState.cheatMode && !activePowerUps.shield.active) {
+                        gameState.gameOver = true;
+                    }
+                    return false;
+                    
+                case COLLISION_TYPES.PLAYER_BLOCK:
+                    if (!controlState.cheatMode && !activePowerUps.shield.active && !obj2.stopped) {
+                        gameState.gameOver = true;
+                    }
+                    return false;
+                    
+                case COLLISION_TYPES.PLAYER_POWERUP:
+                    obj1.effect();
+                    powerUps.splice(index1, 1);
+                    return true;
+                    
+                case COLLISION_TYPES.BULLET_INVADER:
+                    invaders.splice(index2, 1);
+                    bullets.splice(index1, 1);
+                    // Update both score variables
+                    gameState.score += 10;
+                    score += 10; // For backward compatibility
+                    updateScoreDisplay();
+                    // Create explosion animation
+                    createExplosion(obj2.x + obj2.width/2, obj2.y + obj2.height/2);
+                    return true;
+                    
+                case COLLISION_TYPES.BULLET_BLOCK:
+                    blocks.splice(index2, 1);
+                    bullets.splice(index1, 1);
+                    // Update both score variables
+                    gameState.score += 5;
+                    score += 5; // For backward compatibility
+                    updateScoreDisplay();
+                    // Create block destruction animation
+                    createBlockDestruction(obj2.x, obj2.y, obj2.color);
+                    return true;
+                    
+                case COLLISION_TYPES.BLOCK_BLOCK:
+                    return true;
+                    
+                case COLLISION_TYPES.BLOCK_BOTTOM:
+                    obj1.stopped = true;
+                    obj1.y = (GRID_HEIGHT - obj1.shape.length) * GRID_SIZE;
+                    return true;
+                    
+                default:
+                    return false;
+            }
+        }
+
+        // Check if player can move to a new position
+        function canMove(newX, newY) {
+            const newRect = { x: newX, y: newY, width: player.width, height: player.height };
+            
+            for (let i = 0; i < blocks.length; i++) {
+                // Only consider blocks that are stopped (i.e. have landed)
+                if (blocks[i].stopped && detectCollision(newRect, blocks[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Check if a block should stop falling
+        function checkBlockLanding(block, index) {
+            const nextY = block.y + block.speed;
+            
+            // Check collision with bottom of screen
+            if (nextY + block.height >= canvas.height) {
+                return handleCollision(COLLISION_TYPES.BLOCK_BOTTOM, block, null, index, null);
+            }
+            
+            // Check collision with other blocks
+            for (let i = 0; i < blocks.length; i++) {
+                if (blocks[i] !== block && blocks[i].stopped) {
+                    const otherBlock = blocks[i];
+                    const nextBlockPos = {
+                        x: block.x,
+                        y: nextY,
+                        width: block.width,
+                        height: block.height
+                    };
+                    
+                    if (detectCollision(nextBlockPos, otherBlock)) {
+                        block.stopped = true;
+                        block.y = otherBlock.y - block.height;
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        // Check if blocks have stacked beyond the top
+        function checkStackOverflow() {
+            for (let block of blocks) {
+                if (block.stopped && block.y < 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Create explosion animation
+        function createExplosion(x, y) {
+            // Simple explosion animation
+            const explosion = {
+                x: x - 15,
+                y: y - 15,
+                size: 30,
+                alpha: 1,
+                life: 15
+            };
+            
+            explosions.push(explosion);
+        }
+
+        // Create block destruction animation
+        function createBlockDestruction(x, y, color) {
+            // Create particles for block destruction
+            const particleCount = 10;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = {
+                    x: x + Math.random() * GRID_SIZE,
+                    y: y + Math.random() * GRID_SIZE,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: (Math.random() - 0.5) * 3,
+                    size: 2 + Math.random() * 3,
+                    color: color,
+                    life: 20 + Math.random() * 20
+                };
+                
+                particles.push(particle);
+            }
+        }
+
         // Shoot bullet
         function shoot() {
             let beamCount = 1;
             let bulletsPerBeam = 1;
 
-            // Determine the number of beams and bullets per beam based on score thresholds:
-            if (score >= 1000) {
+            // If spread shot power-up is active, increase the number of beams
+            if (activePowerUps.spreadShot.active) {
                 beamCount = 5;
-                bulletsPerBeam = 16;
-            } else if (score >= 750) {
-                beamCount = 4;
-                bulletsPerBeam = 8;
-            } else if (score >= 500) {
-                beamCount = 3;
                 bulletsPerBeam = 4;
-            } else if (score >= 250) {
-                beamCount = 2;
-                bulletsPerBeam = 2;
+            } else {
+                // Determine the number of beams and bullets per beam based on score thresholds:
+                if (gameState.score >= 1000) {
+                    beamCount = 5;
+                    bulletsPerBeam = 16;
+                } else if (gameState.score >= 750) {
+                    beamCount = 4;
+                    bulletsPerBeam = 8;
+                } else if (gameState.score >= 500) {
+                    beamCount = 3;
+                    bulletsPerBeam = 4;
+                } else if (gameState.score >= 250) {
+                    beamCount = 2;
+                    bulletsPerBeam = 2;
+                }
             }
 
             // Calculate base offsets for each beam so they fan out horizontally
@@ -670,273 +1262,95 @@
             bullets.push(bullet);
         }
 
-        // Collision detection
-        function checkCollision(rect1, rect2) {
-            return (rect1.x < rect2.x + rect2.width &&
-                    rect1.x + rect1.width > rect2.x &&
-                    rect1.y < rect2.y + rect2.height &&
-                    rect1.y + rect1.height > rect2.y);
-        }
-
-        // Check if block should stop falling
-        function checkBlockLanding(block) {
-            const nextY = block.y + block.speed;
-            if (nextY + block.height >= canvas.height) {
-                block.stopped = true;
-                block.y = (GRID_HEIGHT - block.shape.length) * GRID_SIZE;
-                return true;
-            }
-            for (let otherBlock of blocks) {
-                if (otherBlock !== block && otherBlock.stopped) {
-                    const otherTop = otherBlock.y;
-                    if (nextY + block.height > otherTop && 
-                        block.x < otherBlock.x + otherBlock.width && 
-                        block.x + block.width > otherBlock.x) {
-                        block.stopped = true;
-                        block.y = otherTop - block.height;
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        // Check if blocks have stacked beyond the top
-        function checkStackOverflow() {
-            for (let block of blocks) {
-                if (block.stopped && block.y < 0) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // Reset game state
-        function resetGame() {
-            // Hide the overlay just in case.
-            document.getElementById('gameOverOverlay').style.display = 'none';
-
-            // Store the finished score before resetting.
-            let finishedScore = score;
-            // Save old personal highscore.
-            let oldPersonalHighscore = highScore;
-            // Update personal best if beaten.
-            if (finishedScore > highScore) {
-                highScore = finishedScore;
-                localStorage.setItem('highScore', highScore);
-            }
-
-            // Build congratulatory message(s).
-            let message = "";
-            if (finishedScore > oldPersonalHighscore) {
-                message += "Congratulations new Personal highscore!";
-            }
-            if (finishedScore > (window.topPublicScore || 0)) {
-                message += (message ? " " : "") + "Congratulations new Public highscore!";
-            }
-            document.getElementById('congratsMessage').innerText = message;
-
-            // Reset game state...
-            player = {
-                x: 9 * GRID_SIZE,
-                y: 27 * GRID_SIZE,
-                width: 2 * GRID_SIZE,
-                height: GRID_SIZE,
-                moveCooldown: 0,
-                moveDelay: 10
-            };
-            invaders = [];
-            bullets = [];
-            blocks = [];
-            score = 0;
-            gameOver = false;
-            timeElapsed = 0;
-            blockSpawnRate = 0.01;
-            baseBlockSpeed = 1;
-            updateScoreDisplay();
-            attachSubmitScoreListener();
-            console.log("Restarting game...");
-            setTimeout(() => {
-                console.log("Calling gameLoop (via requestAnimationFrame)");
-                gameLoopRequestID = requestAnimationFrame(gameLoop);
-            }, 300);
-        }
-
-        // Update score display
-        function updateScoreDisplay() {
-            scoreDisplay.textContent = `Score: ${score} | High Score: ${highScore}`;
-        }
-
-        // Draw grid with a starry background effect
-        function drawGrid() {
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = '#333';
-            for (let x = 0; x <= canvas.width; x += GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y <= canvas.height; y += GRID_SIZE) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-            ctx.fillStyle = '#FFF';
-            for (let i = 0; i < 50; i++) {
-                const starX = Math.random() * canvas.width;
-                const starY = Math.random() * canvas.height;
-                ctx.fillRect(starX, starY, 1, 1);
-            }
-        }
-
-        // Draw player as a spaceship
-        function drawPlayer(x, y, width, height) {
-            ctx.fillStyle = '#00FF00';
-            ctx.beginPath();
-            ctx.moveTo(x + width / 2, y);
-            ctx.lineTo(x, y + height);
-            ctx.lineTo(x + width, y + height);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + width / 2 - 4, y + height / 4, 8, 4);
-        }
-
-        // Draw invaders with more detail
-        function drawInvader(x, y, width, height) {
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(x, y + height / 4, width, height / 2);
-            ctx.fillRect(x + width / 4, y, width / 2, height);
-        }
-
-        // New helper function – returns false if the intended new position collides
-        // with any blocks that have stopped (i.e. settled at the bottom)
-        function canMove(newX, newY) {
-            const newRect = { x: newX, y: newY, width: player.width, height: player.height };
-            for (let i = 0; i < blocks.length; i++) {
-                // Only consider blocks that are stopped (i.e. have landed)
-                if (blocks[i].stopped && checkCollision(newRect, blocks[i])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        // Game loop
-        function gameLoop(timestamp) {
-            console.log("gameLoop running, gameOver =", gameOver);
-            if (gameOver) {
-                ctx.fillStyle = 'white';
-                ctx.font = '40px Arial';
-                ctx.fillText('Game Over', 100, 300);
-                return;
-            }
-
-            timeElapsed += 1/60;
-            blockSpawnRate = Math.min(0.05, 0.01 + timeElapsed * 0.0005);
-
-            drawGrid();
-
-            if (player.moveCooldown > 0) player.moveCooldown--;
-            if (player.moveCooldown <= 0) {
-                if (leftPressed && player.x > 0) {
-                    let newX = player.x - GRID_SIZE;
-                    if (canMove(newX, player.y)) {
-                        player.x = newX;
-                        player.moveCooldown = player.moveDelay;
-                    }
-                }
-                if (rightPressed && player.x < canvas.width - player.width) {
-                    let newX = player.x + GRID_SIZE;
-                    if (canMove(newX, player.y)) {
-                        player.x = newX;
-                        player.moveCooldown = player.moveDelay;
-                    }
-                }
-                if (upPressed && player.y > 0) {
-                    let newY = player.y - GRID_SIZE;
-                    if (canMove(player.x, newY)) {
-                        player.y = newY;
-                        player.moveCooldown = player.moveDelay;
-                    }
-                }
-                if (downPressed && player.y < canvas.height - player.height) {
-                    let newY = player.y + GRID_SIZE;
-                    if (canMove(player.x, newY)) {
-                        player.y = newY;
-                        player.moveCooldown = player.moveDelay;
-                    }
-                }
-            }
-            if (cheatMode) {
-                shootCheat();
-            } else if (shootRequested) {
-                shoot();
-                shootRequested = false;
-            }
-
-            drawPlayer(player.x, player.y, player.width, player.height);
-
-            bullets.forEach((bullet, bIndex) => {
+        // Draw and update bullets
+        function updateAndDrawBullets() {
+            for (let bIndex = bullets.length - 1; bIndex >= 0; bIndex--) {
+                const bullet = bullets[bIndex];
                 bullet.y -= bullet.speed;
+                
+                // Draw bullet
                 ctx.fillStyle = '#FFFFFF';
                 ctx.beginPath();
                 ctx.arc(bullet.x + bullet.width / 2, bullet.y + bullet.height / 2, 2, 0, Math.PI * 2);
                 ctx.fill();
 
-                invaders.forEach((invader, iIndex) => {
-                    if (checkCollision(bullet, invader)) {
-                        invaders.splice(iIndex, 1);
-                        bullets.splice(bIndex, 1);
-                        score += 10;
-                        updateScoreDisplay();
+                // Check collision with invaders
+                let hitSomething = false;
+                for (let iIndex = invaders.length - 1; iIndex >= 0; iIndex--) {
+                    if (detectCollision(bullet, invaders[iIndex])) {
+                        hitSomething = handleCollision(COLLISION_TYPES.BULLET_INVADER, bullet, invaders[iIndex], bIndex, iIndex);
+                        break;
                     }
-                });
+                }
 
-                blocks.forEach((block, blIndex) => {
-                    if (checkCollision(bullet, block)) {
-                        blocks.splice(blIndex, 1);
-                        bullets.splice(bIndex, 1);
-                        score += 5;
-                        updateScoreDisplay();
+                // If bullet already hit an invader, continue to next bullet
+                if (hitSomething) {
+                    continue;
+                }
+
+                // Check collision with blocks
+                for (let blIndex = blocks.length - 1; blIndex >= 0; blIndex--) {
+                    if (detectCollision(bullet, blocks[blIndex])) {
+                        hitSomething = handleCollision(COLLISION_TYPES.BULLET_BLOCK, bullet, blocks[blIndex], bIndex, blIndex);
+                        break;
                     }
-                });
+                }
 
-                if (bullet.y < 0) bullets.splice(bIndex, 1);
-            });
+                // If bullet already hit a block, continue to next bullet
+                if (hitSomething) {
+                    continue;
+                }
 
-            invaders.forEach((invader, index) => {
-                invader.y += invader.speed;
+                // Remove bullet if it goes off screen
+                if (bullet.y < 0) {
+                    bullets.splice(bIndex, 1);
+                }
+            }
+        }
+
+        // Update and draw invaders
+        function updateAndDrawInvaders(speedMultiplier) {
+            for (let i = invaders.length - 1; i >= 0; i--) {
+                const invader = invaders[i];
+                invader.y += invader.speed * speedMultiplier;
                 drawInvader(invader.x, invader.y, invader.width, invader.height);
 
-                if (!cheatMode && checkCollision(invader, player)) {
-                    gameOver = true;
-                }
-            });
-
-            blocks.forEach((block, index) => {
-                if (!block.stopped) {
-                    block.y += block.speed;
-                    checkBlockLanding(block);
+                // Check collision with player
+                if (detectCollision(invader, player)) {
+                    handleCollision(COLLISION_TYPES.PLAYER_INVADER, player, invader, null, i);
                 }
                 
+                // Remove invaders that go off screen
+                if (invader.y > canvas.height) {
+                    invaders.splice(i, 1);
+                }
+            }
+        }
+
+        // Update and draw blocks
+        function updateAndDrawBlocks(speedMultiplier) {
+            for (let i = blocks.length - 1; i >= 0; i--) {
+                const block = blocks[i];
+                if (!block.stopped) {
+                    block.y += block.speed * speedMultiplier;
+                    checkBlockLanding(block, i);
+                }
+                
+                // Draw block
                 ctx.fillStyle = block.color;
                 ctx.strokeStyle = '#000';
-                for (let i = 0; i < block.shape.length; i++) {
-                    for (let j = 0; j < block.shape[i].length; j++) {
-                        if (block.shape[i][j]) {
+                for (let row = 0; row < block.shape.length; row++) {
+                    for (let col = 0; col < block.shape[row].length; col++) {
+                        if (block.shape[row][col]) {
                             ctx.fillRect(
-                                block.x + j * GRID_SIZE,
-                                block.y + i * GRID_SIZE,
+                                block.x + col * GRID_SIZE,
+                                block.y + row * GRID_SIZE,
                                 GRID_SIZE - 2,
                                 GRID_SIZE - 2
                             );
                             ctx.strokeRect(
-                                block.x + j * GRID_SIZE,
-                                block.y + i * GRID_SIZE,
+                                block.x + col * GRID_SIZE,
+                                block.y + row * GRID_SIZE,
                                 GRID_SIZE - 2,
                                 GRID_SIZE - 2
                             );
@@ -944,25 +1358,60 @@
                     }
                 }
 
-                if (!cheatMode && !block.stopped && checkCollision(block, player)) {
-                    gameOver = true;
+                // Check collision with player
+                if (detectCollision(block, player)) {
+                    handleCollision(COLLISION_TYPES.PLAYER_BLOCK, player, block, null, i);
                 }
-            });
-
-            if (checkStackOverflow()) {
-                gameOver = true;
             }
+        }
 
-            // --- Alien Animations ---
-            // At high scores, spawn alien animations – more frequently after 1000 points.
-            if (score >= 500 && Math.random() < 0.005) {
-                spawnAlienAnimation();
+        // Draw and update power-ups
+        function updateAndDrawPowerUps(blockSpeedMultiplier) {
+            // Handle power-ups
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                const powerUp = powerUps[i];
+                powerUp.y += powerUp.speed * blockSpeedMultiplier;
+                
+                // Draw power-up
+                ctx.fillStyle = powerUp.color;
+                ctx.strokeStyle = '#000';
+            ctx.beginPath();
+                ctx.arc(
+                    powerUp.x + powerUp.width / 2, 
+                    powerUp.y + powerUp.height / 2, 
+                    powerUp.width / 2, 
+                    0, 
+                    Math.PI * 2
+                );
+            ctx.fill();
+                ctx.stroke();
+                
+                // Draw power-up symbol
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(
+                    powerUp.symbol, 
+                    powerUp.x + powerUp.width / 2, 
+                    powerUp.y + powerUp.height / 2
+                );
+                
+                // Check for collision with player
+                if (detectCollision(powerUp, player)) {
+                    handleCollision(COLLISION_TYPES.PLAYER_POWERUP, powerUp, player, i, null);
+                    continue;
+                }
+                
+                // Remove power-up if it goes off screen
+                if (powerUp.y > canvas.height) {
+                    powerUps.splice(i, 1);
+                }
             }
-            if (score >= 1000 && Math.random() < 0.01) {
-                spawnAlienAnimation();
-            }
+        }
 
-            // Update and draw active alien animations
+        // Update and draw alien animations
+        function updateAndDrawAliens() {
             for (let i = alienAnims.length - 1; i >= 0; i--) {
                 updateAlien(alienAnims[i]);
                 drawAlien(alienAnims[i]);
@@ -970,193 +1419,590 @@
                     alienAnims.splice(i, 1);
                 }
             }
+        }
 
+        // Spawn game objects based on probability
+        function spawnGameObjects() {
+            if (Math.random() < 0.02) spawnInvader();
+            if (Math.random() < blockSpawnRate) spawnBlock();
+            if (Math.random() < 0.002) spawnPowerUp();
+            
+            // Spawn alien animations based on score
+            if (gameState.score >= 500 && Math.random() < 0.005) {
+                spawnAlienAnimation();
+            }
+            if (gameState.score >= 1000 && Math.random() < 0.01) {
+                spawnAlienAnimation();
+            }
+        }
+
+        // Draw score
+        function drawScore() {
             ctx.fillStyle = '#FFFFFF';
             ctx.strokeStyle = '#000';
             ctx.font = '20px Arial';
             ctx.lineWidth = 2;
-            ctx.strokeText(`Score: ${score}`, 10, 30);
-            ctx.fillText(`Score: ${score}`, 10, 30);
+            ctx.strokeText(`Score: ${gameState.score}`, 10, 30);
+            ctx.fillText(`Score: ${gameState.score}`, 10, 30);
+        }
 
-            if (Math.random() < 0.02) spawnInvader();
-            if (Math.random() < blockSpawnRate) spawnBlock();
+        // Game loop
+        function gameLoop(timestamp) {
+            if (gameState.gameOver) {
+                // Draw "Game Over" text
+                ctx.fillStyle = 'white';
+                ctx.font = '40px Arial';
+                ctx.fillText('Game Over', 100, 300);
+                
+                // Show the game over overlay if it's not already visible
+                const overlay = document.getElementById('gameOverOverlay');
+                if (overlay && overlay.style.display !== 'flex') {
+                    console.log("Game over detected, showing overlay");
+                    overlay.style.display = 'flex';
+                    
+                    // Make sure the submit score listener is attached
+                    attachSubmitScoreListener();
+                }
+                
+                return;
+            }
 
-            if (gameOver) {
-                // Stop the loop by not requesting another frame and show the overlay.
-                document.getElementById('gameOverOverlay').style.display = 'flex';
-            } else {
-                gameLoopRequestID = requestAnimationFrame(gameLoop);
+            // Update game state
+            timeElapsed += 1/60;
+            blockSpawnRate = Math.min(0.05, 0.01 + timeElapsed * 0.0005);
+
+            // Draw background
+            drawGrid();
+
+            // Update power-ups
+            updatePowerUpDurations();
+
+            // Handle player input
+            handlePlayerMovement();
+            handleShooting();
+
+            // Draw player
+            drawShieldEffect();
+            drawPlayer(player.x, player.y, player.width, player.height);
+
+            // Update and draw game objects
+            updateAndDrawBullets();
+            
+            // Apply slow motion effect if active
+            const speedMultiplier = activePowerUps.slowMotion.active ? 0.3 : 1;
+            updateAndDrawInvaders(speedMultiplier);
+            updateAndDrawBlocks(speedMultiplier);
+            updateAndDrawPowerUps(speedMultiplier);
+            updateAndDrawAliens();
+            
+            // Update and draw visual effects
+            updateAndDrawExplosions();
+            updateAndDrawParticles();
+
+            // Check for game over condition
+            if (checkStackOverflow()) {
+                console.log("Stack overflow detected, game over");
+                gameState.gameOver = true;
+                
+                // Show game over overlay immediately
+                const overlay = document.getElementById('gameOverOverlay');
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    attachSubmitScoreListener();
+                }
+                
+                return;
+            }
+
+            // Draw score
+            drawScore();
+
+            // Spawn new game objects
+            spawnGameObjects();
+
+            // Continue game loop if not game over
+            if (!gameState.gameOver) {
+                gameState.gameLoopRequestID = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Update and draw explosions
+        function updateAndDrawExplosions() {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i];
+                
+                // Draw explosion
+                ctx.beginPath();
+                ctx.arc(explosion.x + explosion.size/2, explosion.y + explosion.size/2, 
+                        explosion.size * (1 - explosion.life/15), 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 100, 0, ${explosion.alpha})`;
+                ctx.fill();
+                
+                // Update explosion
+                explosion.life--;
+                explosion.alpha -= 0.07;
+                
+                // Remove expired explosions
+                if (explosion.life <= 0) {
+                    explosions.splice(i, 1);
+                }
+            }
+        }
+
+        // Update and draw particles
+        function updateAndDrawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                
+                // Draw particle
+                ctx.fillStyle = particle.color;
+                ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+                
+                // Update particle
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.life--;
+                
+                // Remove expired particles
+                if (particle.life <= 0) {
+                    particles.splice(i, 1);
+                }
             }
         }
 
         // Start game and handle restart
-        updateScoreDisplay();
         restartBtn.addEventListener('click', resetGame);
         requestAnimationFrame(gameLoop);
 
         // Helper function to sanitize user input by escaping HTML characters.
         function sanitize(input) {
-            return input.replace(/[&<>"'\/]/g, function(s) {
-                const entityMap = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;',
-                    '/': '&#x2F;'
-                };
-                return entityMap[s];
-            });
+            const entityMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+                '/': '&#x2F;'
+            };
+            return input.replace(/[&<>"'\/]/g, s => entityMap[s]);
         }
 
         // Function to submit a score.
         function submitScore(score) {
-            const nicknameInput = document.getElementById('nicknameInput');
-            let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
-            name = sanitize(name);
-            localStorage.setItem("playerName", name);
-          
-            // Convert score to a number. If it's not a number, log an error and return.
-            const numericScore = Number(score);
-            if (isNaN(numericScore)) {
-                console.error("Score is not a valid number. Raw value:", score);
-                return;
+            try {
+                showDebugMessage("Starting score submission process...");
+                
+                // Check if Firebase is initialized
+                if (!window.firebase || !window.database) {
+                    const errorMsg = "Firebase not properly initialized";
+                    showDebugMessage(errorMsg, true);
+                    return false;
+                }
+                
+                // Get the nickname from input or localStorage
+                const nicknameInput = document.getElementById('nicknameInput');
+                let name = nicknameInput ? nicknameInput.value.trim() : "";
+                
+                // If no name was entered, use the stored name or "Anonymous"
+                if (!name) {
+                    name = localStorage.getItem("playerName") || "Anonymous";
+                    showDebugMessage(`No name entered, using: ${name}`);
+                }
+                
+                // Sanitize the name to prevent XSS
+                name = sanitize(name);
+                showDebugMessage(`Using player name: ${name}`);
+                
+                // Save the player's name to localStorage for future use
+                try {
+                    localStorage.setItem("playerName", name);
+                    showDebugMessage("Player name saved to localStorage");
+                } catch (storageError) {
+                    showDebugMessage("Error saving player name to localStorage: " + storageError.message, true);
+                }
+                
+                // Convert score to a number
+                const numericScore = Number(score);
+                if (isNaN(numericScore)) {
+                    showDebugMessage(`Score is not a valid number. Raw value: ${score}`, true);
+                    return false;
+                }
+                showDebugMessage(`Submitting score: ${numericScore} for player: ${name}`);
+                
+                // Create the score object to submit
+                const highscoreObj = { 
+                    name: name, 
+                    score: numericScore, 
+                    timestamp: Date.now() 
+                };
+                
+                // Get Firebase references
+                try {
+                    const highscoresRef = firebase.database().ref('highscores');
+                    
+                    // Submit the score to Firebase
+                    showDebugMessage("Sending score to Firebase...");
+                    highscoresRef.push(highscoreObj)
+                        .then(() => {
+                            showDebugMessage("Score successfully submitted to database!");
+                            
+                            // Refresh the highscores display
+                            setTimeout(() => {
+                                getPublicHighscores();
+                            }, 1000);
+                            
+                            return true;
+                        })
+                        .catch((error) => {
+                            showDebugMessage("Firebase error writing score: " + error.message, true);
+                            return false;
+                        });
+                        
+                    return true; // Indicate successful submission attempt
+                } catch (firebaseError) {
+                    showDebugMessage("Firebase operation error: " + firebaseError.message, true);
+                    return false;
+                }
+            } catch (error) {
+                showDebugMessage("Exception during score submission: " + error.message, true);
+                return false; // Indicate failed submission
             }
-            console.log("Verified numericScore:", numericScore, "Type:", typeof numericScore);
-          
-            const highscoresRef = ref(window.database, 'highscores');
-            const newScoreRef = push(highscoresRef);
-            const highscoreObj = { name: name, score: numericScore, timestamp: Date.now() };
-            console.log("Highscore object to write:", highscoreObj);
-            set(newScoreRef, highscoreObj)
-                .then(() => {
-                    console.log("Score successfully written to the database");
-                })
-                .catch((error) => {
-                    console.error("Error writing score:", error);
-                });
-          
-            console.log("Submitting score object:", highscoreObj);
         }
 
         // Function to fetch and display the public highscore list.
         function getPublicHighscores() {
-            const highscoresQuery = query(ref(window.database, 'highscores'),
-                                          orderByChild('score'),
-                                          limitToLast(25));
-            onValue(highscoresQuery, (snapshot) => {
-                let scores = [];
-                console.log("Fetched highscores snapshot:", snapshot.val());
-                snapshot.forEach((childSnapshot) => {
-                    scores.push(childSnapshot.val());
-                });
-                // Sort scores in descending order.
-                scores.sort((a, b) => b.score - a.score);
-                window.topPublicScore = scores.length > 0 ? scores[0].score : 0;
-                if (scores.length === 0) {
-                    console.log("No highscores found in the database.");
+            try {
+                // Check if Firebase is initialized
+                if (!window.database) {
+                    console.error("Firebase database not initialized");
+                    showDebugMessage("Error: Firebase database not initialized", true);
+                    return;
                 }
+                
+                const highscoresRef = firebase.database().ref('highscores');
+                highscoresRef.orderByChild('score').limitToLast(25).once('value')
+                    .then((snapshot) => {
+                        let scores = [];
+                        console.log("Fetched highscores snapshot:", snapshot.val());
+                        
+                        snapshot.forEach((childSnapshot) => {
+                            scores.push(childSnapshot.val());
+                        });
+                        
+                        // Sort scores in descending order.
+                        scores.sort((a, b) => b.score - a.score);
+                        window.topPublicScore = scores.length > 0 ? scores[0].score : 0;
+                        
+                        if (scores.length === 0) {
+                            console.log("No highscores found in the database.");
+                        }
 
-                const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
-                publicHighscoreDisplay.innerHTML = ''; // Clear previous content
+                        const publicHighscoreDisplay = document.getElementById('publicHighscoreDisplay');
+                        if (publicHighscoreDisplay) {
+                            publicHighscoreDisplay.innerHTML = ''; // Clear previous content
 
-                const header = document.createElement('h3');
-                header.textContent = 'Top 25 public scoreboard';
-                publicHighscoreDisplay.appendChild(header);
+                            const header = document.createElement('h3');
+                            header.textContent = 'Top 25 public scoreboard';
+                            publicHighscoreDisplay.appendChild(header);
 
-                const list = document.createElement('ol');
-                scores.forEach(entry => {
-                    const li = document.createElement('li');
-                    li.textContent = `${entry.name} - ${entry.score}`;
-                    list.appendChild(li);
-                });
-                publicHighscoreDisplay.appendChild(list);
-            }, (error) => {
-                console.error("Error fetching highscores:", error);
-            });
+                            const list = document.createElement('ol');
+                            scores.forEach(entry => {
+                                const li = document.createElement('li');
+                                li.textContent = `${entry.name} - ${entry.score}`;
+                                list.appendChild(li);
+                            });
+                            publicHighscoreDisplay.appendChild(list);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Error fetching highscores:", error);
+                        showDebugMessage("Error fetching highscores: " + error.message, true);
+                    });
+            } catch (error) {
+                console.error("Exception in getPublicHighscores:", error);
+                showDebugMessage("Exception in getPublicHighscores: " + error.message, true);
+            }
         }
-
-        // On load, pre-populate the nickname input with the stored name (if available)
-        const storedName = localStorage.getItem("playerName");
-        if (storedName) {
-            document.getElementById('nicknameInput').value = storedName;
+        
+        // Alias for backward compatibility
+        function fetchPublicHighscores() {
+            getPublicHighscores();
         }
 
         // Helper function to restore the Game Over overlay to its default state
         // and attach the submit score button event listener.
         function attachSubmitScoreListener() {
+            showDebugMessage("Setting up score submission listener");
+            
             const userProfile = document.getElementById('userProfile');
-            // Restore the default content for the overlay safely.
+            if (!userProfile) {
+                showDebugMessage("userProfile element not found", true);
+                return;
+            }
+            
+            // Restore the default content for the overlay
             userProfile.innerHTML = '';  // Clear existing content
+            
+            // Create game over message
             const p = document.createElement('p');
             p.textContent = 'Game Over! Enter your nickname to submit your score:';
             userProfile.appendChild(p);
 
+            // Create nickname input
             const input = document.createElement('input');
             input.type = "text";
             input.id = "nicknameInput";
             input.placeholder = "Enter your nickname";
             userProfile.appendChild(input);
 
+            // Create submit button with visual feedback styling
             const btn = document.createElement('button');
             btn.id = "submitScoreBtn";
             btn.textContent = "Submit Score";
+            btn.style.position = "relative";
+            btn.style.transition = "all 0.2s";
+            btn.style.border = "2px solid #444";
             userProfile.appendChild(btn);
+            
+            // Add click counter display
+            const clickCounter = document.createElement('div');
+            clickCounter.id = "clickCounter";
+            clickCounter.textContent = "Clicks: 0";
+            clickCounter.style.fontSize = "12px";
+            clickCounter.style.marginTop = "5px";
+            clickCounter.style.color = "#AAA";
+            userProfile.appendChild(clickCounter);
+            
+            // Add a direct restart button for troubleshooting
+            const directRestartBtn = document.createElement('button');
+            directRestartBtn.id = "directRestartBtn";
+            directRestartBtn.textContent = "Direct Restart (Skip Submit)";
+            directRestartBtn.style.marginTop = "10px";
+            directRestartBtn.style.background = "#555";
+            userProfile.appendChild(directRestartBtn);
+            
+            // Add a debug info button
+            const debugInfoBtn = document.createElement('button');
+            debugInfoBtn.id = "debugInfoBtn";
+            debugInfoBtn.textContent = "Show Debug Info";
+            debugInfoBtn.style.marginTop = "10px";
+            debugInfoBtn.style.marginLeft = "10px";
+            debugInfoBtn.style.background = "#555";
+            userProfile.appendChild(debugInfoBtn);
 
-            // Pre-populate the nickname input if a name was stored.
+            // Pre-populate the nickname input if a name was stored
             const storedName = localStorage.getItem("playerName");
             if (storedName) {
-                document.getElementById('nicknameInput').value = storedName;
+                input.value = storedName;
+                showDebugMessage(`Pre-populated nickname input with stored name: ${storedName}`);
             }
-            // Attach the event listener.
-            document.getElementById('submitScoreBtn').addEventListener('click', (e) => {
+            
+            // Add multiple event listeners to ensure clicks are captured
+            // Clear any existing event listeners by cloning and replacing the buttons
+            const oldBtn = btn;
+            const newBtn = oldBtn.cloneNode(true);
+            oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+            
+            const oldDirectBtn = directRestartBtn;
+            const newDirectBtn = oldDirectBtn.cloneNode(true);
+            oldDirectBtn.parentNode.replaceChild(newDirectBtn, oldDirectBtn);
+            
+            const oldDebugBtn = debugInfoBtn;
+            const newDebugBtn = oldDebugBtn.cloneNode(true);
+            oldDebugBtn.parentNode.replaceChild(newDebugBtn, oldDebugBtn);
+            
+            // Attach the event listener to the submit button
+            newBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                console.log("Submit button clicked, starting countdown...");
-                // Disable to avoid multiple clicks.
-                const btn = document.getElementById('submitScoreBtn');
-                btn.disabled = true;
+                showDebugMessage("Submit score button clicked");
+                
+                // Disable the button to prevent multiple submissions
+                this.disabled = true;
+                this.textContent = "Submitting...";
+                
+                // Get the current score from gameState
+                const currentScore = gameState.score;
+                showDebugMessage(`Current score to submit: ${currentScore}`);
 
-                // Retrieve player's name (from input or storage).
+                // Submit the score
+                const submitted = submitScore(currentScore);
+                showDebugMessage(`Score submission result: ${submitted ? "Success" : "Failed"}`);
+
+                // Show countdown and restart game after a short delay
+                showDebugMessage("Starting countdown in 1 second...");
+                setTimeout(() => {
+                    try {
+                        showCountdownAndRestart();
+                    } catch (error) {
+                        showDebugMessage("Error starting countdown: " + error.message, true);
+                        // Fallback to direct reset if countdown fails
+                        resetGame();
+                    }
+                }, 1000);
+            });
+            
+            // Attach event listener to direct restart button
+            newDirectBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                showDebugMessage("Direct restart button clicked");
+                
+                // Disable the button
+                this.disabled = true;
+                
+                // Save the player name if entered
                 const nicknameInput = document.getElementById('nicknameInput');
-                let name = nicknameInput.value.trim() || localStorage.getItem("playerName") || "Anonymous";
-                // Save the player's name.
-                localStorage.setItem("playerName", name);
-                console.log("Submitting score for:", name, "Score:", score);
-
-                // Submit the score.
-                submitScore(score);
-
-                // Ensure the overlay is visible.
+                if (nicknameInput && nicknameInput.value.trim()) {
+                    try {
+                        localStorage.setItem("playerName", nicknameInput.value.trim());
+                    } catch (e) {
+                        showDebugMessage("Error saving name: " + e.message, true);
+                    }
+                }
+                
+                // Hide overlay and reset game directly
+                document.getElementById('gameOverOverlay').style.display = 'none';
+                resetGame();
+            });
+            
+            // Attach event listener to debug info button
+            newDebugBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                showDebugMessage("Debug info button clicked");
+                
+                // Show detailed debug info
+                const debugInfo = {
+                    gameState: JSON.stringify(gameState),
+                    firebaseInitialized: !!(window.database && window.ref && window.push && window.set),
+                    audioState: {
+                        initialized: audioSystem.initialized,
+                        muted: audioSystem.muted,
+                        currentTrack: audioSystem.currentTrackIndex
+                    },
+                    browserInfo: navigator.userAgent,
+                    screenSize: `${window.innerWidth}x${window.innerHeight}`,
+                    timestamp: new Date().toISOString()
+                };
+                
+                showDebugMessage("GAME STATE: " + debugInfo.gameState);
+                showDebugMessage("FIREBASE: " + (debugInfo.firebaseInitialized ? "Initialized" : "NOT INITIALIZED"));
+                showDebugMessage("AUDIO: " + JSON.stringify(debugInfo.audioState));
+                showDebugMessage("BROWSER: " + debugInfo.browserInfo);
+                showDebugMessage("SCREEN: " + debugInfo.screenSize);
+            });
+            
+            showDebugMessage("Score submission listener attached successfully");
+        }
+        
+        // Function to show countdown and restart game
+        function showCountdownAndRestart() {
+            showDebugMessage("Starting countdown sequence");
+            
+            try {
+                // Cancel any existing animation frame to prevent multiple game loops
+                if (gameState.gameLoopRequestID) {
+                    cancelAnimationFrame(gameState.gameLoopRequestID);
+                    gameState.gameLoopRequestID = null;
+                    showDebugMessage("Cancelled existing animation frame");
+                }
+                
+                // Cancel any existing countdown timers
+                if (window.countdownTimers) {
+                    window.countdownTimers.forEach(timer => clearTimeout(timer));
+                    showDebugMessage("Cleared existing countdown timers");
+                }
+                window.countdownTimers = [];
+                
+                // Ensure the overlay is visible
                 const overlay = document.getElementById('gameOverOverlay');
+                if (!overlay) {
+                    showDebugMessage("gameOverOverlay element not found", true);
+                    resetGame(); // Fallback to direct reset
+                    return;
+                }
                 overlay.style.display = 'flex';
+                showDebugMessage("Game over overlay displayed");
 
-                // Replace the overlay content with a big countdown message.
+                // Replace the overlay content with a countdown message
                 const cp = document.getElementById('userProfile');
+                if (!cp) {
+                    showDebugMessage("userProfile element not found", true);
+                    resetGame(); // Fallback to direct reset
+                    return;
+                }
+                
                 cp.innerHTML = ''; // Clear current content
+                showDebugMessage("Cleared userProfile content");
+                
+                // Create countdown element with large, visible styling
                 const countdownDiv = document.createElement('div');
                 countdownDiv.id = 'countdownMessage';
-                countdownDiv.style.fontSize = "72px";
+                countdownDiv.style.fontSize = "120px";
                 countdownDiv.style.fontWeight = "bold";
                 countdownDiv.style.color = "#00FFFF";
+                countdownDiv.style.textShadow = "0 0 10px #FFFFFF";
+                countdownDiv.style.textAlign = "center";
+                countdownDiv.style.margin = "20px 0";
                 countdownDiv.textContent = "3";
                 cp.appendChild(countdownDiv);
+                showDebugMessage("Created countdown element, starting at 3");
 
-                // Fixed countdown timing (total duration 1.5 seconds).
-                setTimeout(() => {
-                    document.getElementById('countdownMessage').textContent = "2";
-                }, 375);
-                setTimeout(() => {
-                    document.getElementById('countdownMessage').textContent = "1";
-                }, 750);
-                setTimeout(() => {
-                    document.getElementById('countdownMessage').textContent = "GO!";
-                }, 1125);
-                setTimeout(() => {
+                // Store all timeout IDs to be able to clear them if needed
+                const timers = [];
+                
+                // Countdown sequence with longer delays for visibility
+                timers.push(setTimeout(() => {
+                    countdownDiv.textContent = "2";
+                    showDebugMessage("Countdown: 2");
+                }, 1000));
+                
+                timers.push(setTimeout(() => {
+                    countdownDiv.textContent = "1";
+                    showDebugMessage("Countdown: 1");
+                }, 2000));
+                
+                timers.push(setTimeout(() => {
+                    countdownDiv.textContent = "GO!";
+                    showDebugMessage("Countdown: GO!");
+                }, 3000));
+                
+                timers.push(setTimeout(() => {
+                    showDebugMessage("Countdown complete, resetting game");
+                    
+                    // Hide overlay
                     overlay.style.display = 'none';
-                    btn.disabled = false;
+                    
+                    // Reset game
+                    try {
+                        resetGame();
+                    } catch (resetError) {
+                        showDebugMessage("Error during game reset: " + resetError.message, true);
+                        // Force page reload as last resort
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
+                    
+                    // This is a good time to try starting the music again since we have user interaction
+                    try {
+                        startMusic();
+                    } catch (e) {
+                        showDebugMessage("Error starting music after countdown: " + e.message, true);
+                    }
+                }, 4000));
+                
+                // Store timeouts in window object to prevent them from being garbage collected
+                window.countdownTimers = timers;
+                showDebugMessage(`Countdown timers set: ${timers.length}`);
+                
+            } catch (error) {
+                showDebugMessage("Critical error in countdown sequence: " + error.message, true);
+                // Fallback to direct reset if countdown fails
+                try {
                     resetGame();
-                }, 1500);
-            });
+                } catch (resetError) {
+                    showDebugMessage("Error during fallback reset: " + resetError.message, true);
+                    // Force page reload as last resort
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            }
         }
 
         // Helper function to detect mobile devices.
@@ -1165,13 +2011,28 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOM fully loaded. Showing mobile controls on all devices.");
-            // Always show mobile controls, regardless of device
+            console.log("DOM fully loaded. Setting up game...");
+            
+            // Show mobile controls on all devices
             document.getElementById('joystickContainer').style.display = 'block';
             document.getElementById('mobileFireBtn').style.display = 'block';
 
-            console.log("Attaching submitScoreBtn listener via attachSubmitScoreListener().");
-            attachSubmitScoreListener();
+            // Initialize mobile controls
+            initializeMobileControls();
+            
+            // Update instructions to include power-ups
+            const instructionsList = document.querySelector('#instructions ul');
+            const powerUpLi = document.createElement('li');
+            powerUpLi.innerHTML = '<strong>Power-ups:</strong> Collect colored orbs for special abilities: <em>Shield (S)</em>, <em>Spread Shot (B)</em>, and <em>Slow Motion (T)</em>.';
+            instructionsList.appendChild(powerUpLi);
+            
+            // Initialize Firebase
+            initializeFirebase();
+            
+            // Initialize the game
+            initializeGame();
+            
+            console.log("Game setup complete");
         });
 
         // Spawn a new alien animation object.
@@ -1208,30 +2069,11 @@
         // Settings event listeners
         document.getElementById('settingsBtn').addEventListener('click', () => {
             pauseGame();
-            // Preload current sensitivity and mute settings
-            document.getElementById('keyboardSensitivitySlider').value = player.moveDelay;
-            document.getElementById('muteMusicCheckbox').checked = isMuted;
-            // Preload player's name from localStorage (or show "Anonymous")
-            let storedName = localStorage.getItem("playerName") || "Anonymous";
-            document.getElementById('playerNameDisplay').textContent = "Player: " + storedName;
-            document.getElementById('settingsOverlay').style.display = 'flex';
+            openSettingsMenu();
         });
 
         document.getElementById('closeSettingsBtn').addEventListener('click', () => {
-            // Retrieve updated settings values
-            const slider = document.getElementById('keyboardSensitivitySlider');
-            const muteCheckbox = document.getElementById('muteMusicCheckbox');
-
-            // Update keyboard sensitivity (player moveDelay)
-            player.moveDelay = parseInt(slider.value);
-
-            // Update mute setting for the background music
-            isMuted = muteCheckbox.checked;
-            if (bgMusic) {
-                bgMusic.muted = isMuted;
-            }
-
-            // Hide the settings overlay and resume game
+            applySettings();
             document.getElementById('settingsOverlay').style.display = 'none';
             resumeGame();
         });
@@ -1251,39 +2093,592 @@
         const sensitivityDisplay = document.getElementById('keyboardSensitivityValue');
         sensitivitySlider.addEventListener('input', () => {
             sensitivityDisplay.textContent = sensitivitySlider.value;
-            // Lower moveDelay means faster movement. Use the slider value as moveDelay.
             player.moveDelay = parseInt(sensitivitySlider.value);
         });
 
-        // Helper function to display a temporary "Now Playing" message.
-        function displayNowPlaying(trackPath) {
-             // Extract the file name (remove folder path) and strip ".mp3"
-             let fileName = trackPath.split("/").pop();
-             let albumName = fileName.replace(".mp3", "");
-             let message = "Now Playing: " + albumName + " - Sebastien Bourgeois";
- 
-             let msgElem = document.getElementById("nowPlayingMessage");
-             if (!msgElem) {
-                 msgElem = document.createElement("div");
-                 msgElem.id = "nowPlayingMessage";
-                 msgElem.style.position = "fixed";
-                 msgElem.style.top = "50px";
-                 msgElem.style.left = "50%";
-                 msgElem.style.transform = "translateX(-50%)";
-                 msgElem.style.color = "white";
-                 msgElem.style.fontFamily = "Arial, sans-serif";
-                 msgElem.style.background = "rgba(0, 0, 0, 0.5)";
-                 msgElem.style.padding = "5px 10px";
-                 msgElem.style.borderRadius = "5px";
-                 msgElem.style.zIndex = "2000";
-                 document.body.appendChild(msgElem);
-             }
- 
-             msgElem.textContent = message;
-             msgElem.style.display = "block";
-             setTimeout(() => {
-                 msgElem.style.display = "none";
-             }, 5000);
+        // ===== GAME INITIALIZATION AND STATE MANAGEMENT =====
+        
+        // Game configuration constants
+        const GAME_CONFIG = {
+            gridSize: 20,
+            initialBlockSpawnRate: 0.01,
+            initialBlockSpeed: 1,
+            maxBlockSpeed: 5,
+            invaderSpawnChance: 0.02,
+            powerUpSpawnChance: 0.002,
+            alienAnimSpawnChance: 0.005,
+            alienAnimSpawnChanceHighScore: 0.01,
+            scoreThresholdForAliens: 500,
+            scoreThresholdForMoreAliens: 1000
+        };
+        
+        // Game state object to track all game variables
+        let gameState = {
+            score: 0,
+            highScore: 0,
+            timeElapsed: 0,
+            blockSpawnRate: GAME_CONFIG.initialBlockSpawnRate,
+            baseBlockSpeed: GAME_CONFIG.initialBlockSpeed,
+            gameOver: false,
+            gamePaused: false,
+            gameLoopRequestID: null
+        };
+        
+        // Visual effects arrays
+        let explosions = [];
+        let particles = [];
+        
+        // Draw grid background
+        function drawGrid() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Optional: Draw grid lines
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 0.5;
+            
+            // Draw vertical grid lines
+            for (let x = 0; x <= canvas.width; x += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw horizontal grid lines
+            for (let y = 0; y <= canvas.height; y += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
+        // Draw player ship
+        function drawPlayer(x, y, width, height) {
+            // Draw player ship (green rectangle)
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(x, y, width, height);
+            
+            // Draw cockpit
+            ctx.fillStyle = '#AAFFAA';
+            ctx.fillRect(x + width/2 - 2, y, 4, height/2);
+        }
+        
+        // Draw invader
+        function drawInvader(x, y, width, height) {
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(x, y, width, height);
+            
+            // Add some details to the invader
+            ctx.fillStyle = '#FFAAAA';
+            ctx.fillRect(x + 2, y + 2, 4, 4);
+            ctx.fillRect(x + width - 6, y + 2, 4, 4);
+        }
+        
+        // Draw shield effect around player when shield power-up is active
+        function drawShieldEffect() {
+            if (activePowerUps.shield.active) {
+                ctx.strokeStyle = getPowerUpColor('shield');
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(
+                    player.x + player.width/2,
+                    player.y + player.height/2,
+                    player.width * 0.8,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.stroke();
+                
+                // Add a pulsing glow effect
+                const pulseSize = 1 + 0.2 * Math.sin(Date.now() / 100);
+                ctx.strokeStyle = `${getPowerUpColor('shield')}44`; // Semi-transparent
+                ctx.beginPath();
+                ctx.arc(
+                    player.x + player.width/2,
+                    player.y + player.height/2,
+                    player.width * 0.8 * pulseSize,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.stroke();
+            }
+        }
+        
+        // Update power-up durations
+        function updatePowerUpDurations() {
+            for (const [type, data] of Object.entries(activePowerUps)) {
+                if (data.active) {
+                    data.duration--;
+                    if (data.duration <= 0) {
+                        data.active = false;
+                        
+                        // Visual feedback when power-up expires
+                        const expireMessage = document.createElement('div');
+                        expireMessage.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} expired!`;
+                        expireMessage.style.position = 'absolute';
+                        expireMessage.style.left = '50%';
+                        expireMessage.style.top = '130px';
+                        expireMessage.style.transform = 'translateX(-50%)';
+                        expireMessage.style.color = getPowerUpColor(type);
+                        expireMessage.style.fontFamily = 'Arial, sans-serif';
+                        expireMessage.style.fontSize = '18px';
+                        expireMessage.style.opacity = '0.7';
+                        document.body.appendChild(expireMessage);
+                        
+                        // Fade out and remove the message
+                        setTimeout(() => {
+                            expireMessage.style.transition = 'opacity 1s';
+                            expireMessage.style.opacity = '0';
+                            setTimeout(() => {
+                                document.body.removeChild(expireMessage);
+                            }, 1000);
+                        }, 1000);
+                    }
+                }
+            }
+            updatePowerUpStatusDisplay();
+        }
+
+        // Initialize the game
+        function initializeGame() {
+            console.log("Initializing game...");
+            
+            // Set up canvas and context
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate grid dimensions
+            const GRID_WIDTH = canvas.width / GAME_CONFIG.gridSize;
+            const GRID_HEIGHT = canvas.height / GAME_CONFIG.gridSize;
+            
+            // Load high score from local storage
+            gameState.highScore = localStorage.getItem('highScore') ? 
+                parseInt(localStorage.getItem('highScore')) : 0;
+            
+            // Initialize player
+            initializePlayer();
+            
+            // Initialize game objects
+            initializeGameObjects();
+            
+            // Initialize power-ups
+            initializePowerUps();
+            
+            // Initialize audio system
+            initializeAudioSystem();
+            
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Update initial UI
+            updateScoreDisplay();
+            updatePowerUpStatusDisplay();
+            
+            // Start the game loop
+            gameState.gameLoopRequestID = requestAnimationFrame(gameLoop);
+            
+            console.log("Game initialization complete");
+        }
+        
+        // Initialize player object
+        function initializePlayer() {
+            player = {
+                x: 9 * GAME_CONFIG.gridSize,
+                y: 27 * GAME_CONFIG.gridSize,
+                width: 2 * GAME_CONFIG.gridSize,
+                height: GAME_CONFIG.gridSize,
+                moveCooldown: 0,
+                moveDelay: 10
+            };
+        }
+        
+        // Initialize game objects
+        function initializeGameObjects() {
+            invaders = [];
+            bullets = [];
+            blocks = [];
+            alienAnims = [];
+            explosions = [];
+            particles = [];
+        }
+        
+        // Initialize power-ups
+        function initializePowerUps() {
+            powerUps = [];
+            activePowerUps = {
+                shield: { active: false, duration: 0, maxDuration: 300 },
+                spreadShot: { active: false, duration: 0, maxDuration: 300 },
+                slowMotion: { active: false, duration: 0, maxDuration: 300 }
+            };
+        }
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            // Restart button
+            document.getElementById('restartBtn').addEventListener('click', resetGame);
+            
+            // Settings button
+            document.getElementById('settingsBtn').addEventListener('click', () => {
+                pauseGame();
+                openSettingsMenu();
+            });
+            
+            // Close settings button
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+                applySettings();
+                document.getElementById('settingsOverlay').style.display = 'none';
+                resumeGame();
+            });
+            
+            // Sensitivity slider
+            const sensitivitySlider = document.getElementById('keyboardSensitivitySlider');
+            const sensitivityDisplay = document.getElementById('keyboardSensitivityValue');
+            sensitivitySlider.addEventListener('input', () => {
+                sensitivityDisplay.textContent = sensitivitySlider.value;
+                player.moveDelay = parseInt(sensitivitySlider.value);
+            });
+            
+            // Window focus and visibility events
+            window.addEventListener('blur', resetControlState);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    resetControlState();
+                }
+            });
+            
+            // Keyboard events
+            setupKeyboardControls();
+        }
+        
+        // Set up keyboard controls
+        function setupKeyboardControls() {
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'a') controlState.left = true;
+                if (e.key === 'ArrowRight' || e.key === 'd') controlState.right = true;
+                if (e.key === 'ArrowUp' || e.key === 'w') controlState.up = true;
+                if (e.key === 'ArrowDown' || e.key === 's') controlState.down = true;
+                
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    // Only trigger a new shot if space is not already held down
+                    if (!controlState.spaceDown) {
+                        if (e.shiftKey) {
+                            controlState.cheatMode = true;
+                        } else {
+                            controlState.shoot = true;
+                        }
+                        controlState.spaceDown = true;
+                    }
+                }
+                
+                if (e.key === "Escape") {
+                    toggleSettingsMenu();
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    controlState.spaceDown = false;
+                }
+                if (e.key === 'Shift') {
+                    controlState.cheatMode = false;
+                }
+                if (e.key === 'ArrowLeft' || e.key === 'a') controlState.left = false;
+                if (e.key === 'ArrowRight' || e.key === 'd') controlState.right = false;
+                if (e.key === 'ArrowUp' || e.key === 'w') controlState.up = false;
+                if (e.key === 'ArrowDown' || e.key === 's') controlState.down = false;
+            });
+        }
+        
+        // Open settings menu
+        function openSettingsMenu() {
+            // Preload current sensitivity and mute settings
+            document.getElementById('keyboardSensitivitySlider').value = player.moveDelay;
+            document.getElementById('keyboardSensitivityValue').textContent = player.moveDelay;
+            document.getElementById('muteMusicCheckbox').checked = audioSystem.muted;
+            
+            // Preload player's name from localStorage (or show "Anonymous")
+            let storedName = localStorage.getItem("playerName") || "Anonymous";
+            document.getElementById('playerNameDisplay').textContent = "Player: " + storedName;
+            
+            // Show settings overlay
+            document.getElementById('settingsOverlay').style.display = 'flex';
+        }
+        
+        // Apply settings from the settings menu
+        function applySettings() {
+            // Retrieve updated settings values
+            const slider = document.getElementById('keyboardSensitivitySlider');
+            const muteCheckbox = document.getElementById('muteMusicCheckbox');
+            
+            // Update keyboard sensitivity (player moveDelay)
+            player.moveDelay = parseInt(slider.value);
+            
+            // Update mute setting for the background music
+            toggleMute(muteCheckbox.checked);
+        }
+
+        // Update score display
+        function updateScoreDisplay() {
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            scoreDisplay.textContent = `Score: ${gameState.score} | High Score: ${gameState.highScore}`;
+        }
+
+        // Reset game state
+        function resetGame() {
+            console.log("Resetting game state...");
+            
+            // Cancel any existing animation frame
+            if (gameState.gameLoopRequestID) {
+                cancelAnimationFrame(gameState.gameLoopRequestID);
+                gameState.gameLoopRequestID = null;
+                console.log("Cancelled existing animation frame");
+            }
+            
+            // Hide the overlay
+            const overlay = document.getElementById('gameOverOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+
+            // Store the finished score before resetting
+            let finishedScore = gameState.score;
+            
+            // Save old personal highscore
+            let oldPersonalHighscore = gameState.highScore;
+            
+            // Update personal best if beaten
+            if (finishedScore > gameState.highScore) {
+                gameState.highScore = finishedScore;
+                localStorage.setItem('highScore', gameState.highScore);
+                console.log("New personal high score saved:", gameState.highScore);
+            }
+
+            // Build congratulatory message(s)
+            let message = "";
+            if (finishedScore > oldPersonalHighscore) {
+                message += "Congratulations new Personal highscore!";
+            }
+            if (finishedScore > (window.topPublicScore || 0)) {
+                message += (message ? " " : "") + "Congratulations new Public highscore!";
+            }
+            
+            const congratsMessage = document.getElementById('congratsMessage');
+            if (congratsMessage) {
+                congratsMessage.innerText = message;
+            }
+
+            // Reset player
+            player = {
+                x: 9 * GRID_SIZE,
+                y: 27 * GRID_SIZE,
+                width: 2 * GRID_SIZE,
+                height: GRID_SIZE,
+                moveCooldown: 0,
+                moveDelay: 10
+            };
+            
+            // Reset game objects
+            invaders = [];
+            bullets = [];
+            blocks = [];
+            powerUps = [];
+            explosions = [];
+            particles = [];
+            
+            // Reset power-ups
+            activePowerUps = {
+                shield: { active: false, duration: 0, maxDuration: 300 },
+                spreadShot: { active: false, duration: 0, maxDuration: 300 },
+                slowMotion: { active: false, duration: 0, maxDuration: 300 }
+            };
+            
+            // Reset score in gameState
+            gameState.score = 0;
+            gameState.gameOver = false;
+            
+            // Also reset the global score variable for backward compatibility
+            score = 0;
+            
+            // Reset game timing variables
+            timeElapsed = 0;
+            blockSpawnRate = 0.01;
+            baseBlockSpeed = 1;
+            
+            // Reset audio for new game - but don't force it to play
+            initializeOrResetAudioSystem();
+            
+            // Update UI
+            updateScoreDisplay();
+            updatePowerUpStatusDisplay();
+            
+            // Update player name display in settings if available
+            const storedName = localStorage.getItem("playerName");
+            if (storedName) {
+                const playerNameDisplay = document.getElementById('playerNameDisplay');
+                if (playerNameDisplay) {
+                    playerNameDisplay.textContent = "Player: " + storedName;
+                }
+            }
+            
+            console.log("Game reset complete, starting game loop");
+            
+            // Start the game loop with a slight delay to ensure everything is ready
+            setTimeout(() => {
+                gameState.gameLoopRequestID = requestAnimationFrame(gameLoop);
+                console.log("Game loop started with ID:", gameState.gameLoopRequestID);
+            }, 100);
+        }
+
+        // Reset audio system for new game
+        function resetAudioSystemForNewGame() {
+            // If we're starting a new game and music isn't playing, try to start it
+            // But only if we've had user interaction (don't force it)
+            const bgMusic = document.getElementById('bgMusic');
+            
+            if (bgMusic && bgMusic.paused && !audioSystem.muted) {
+                // Don't automatically try to play here - it might fail
+                // Instead, make sure the audio is loaded and ready to play
+                // when the user interacts next
+                if (document.getElementById('bgMusicSource').src !== audioSystem.tracks[0]) {
+                    document.getElementById('bgMusicSource').src = audioSystem.tracks[0];
+                    audioSystem.currentTrackIndex = 0;
+                    bgMusic.load();
+                    console.log("Audio reset and ready for next user interaction");
+                }
+            }
+        }
+
+        // Add a debug message display system
+        function showDebugMessage(message, isError = false) {
+            console.log(isError ? "ERROR: " + message : "DEBUG: " + message);
+            
+            // Create or get the debug message container
+            let debugContainer = document.getElementById('debugMessageContainer');
+            if (!debugContainer) {
+                debugContainer = document.createElement('div');
+                debugContainer.id = 'debugMessageContainer';
+                debugContainer.style.position = 'fixed';
+                debugContainer.style.bottom = '10px';
+                debugContainer.style.left = '10px';
+                debugContainer.style.right = '10px';
+                debugContainer.style.maxHeight = '200px';
+                debugContainer.style.overflowY = 'auto';
+                debugContainer.style.background = 'rgba(0, 0, 0, 0.9)';
+                debugContainer.style.color = 'white';
+                debugContainer.style.padding = '10px';
+                debugContainer.style.borderRadius = '5px';
+                debugContainer.style.fontFamily = 'monospace';
+                debugContainer.style.fontSize = '14px';
+                debugContainer.style.zIndex = '20000';
+                debugContainer.style.border = '2px solid #444';
+                document.body.appendChild(debugContainer);
+                
+                // Add a clear button
+                const clearBtn = document.createElement('button');
+                clearBtn.textContent = "Clear Messages";
+                clearBtn.style.position = "absolute";
+                clearBtn.style.top = "5px";
+                clearBtn.style.right = "5px";
+                clearBtn.style.padding = "2px 5px";
+                clearBtn.style.fontSize = "10px";
+                clearBtn.style.background = "#333";
+                clearBtn.style.color = "white";
+                clearBtn.style.border = "1px solid #555";
+                clearBtn.style.borderRadius = "3px";
+                clearBtn.addEventListener('click', () => {
+                    const messages = debugContainer.querySelectorAll('.debug-message');
+                    messages.forEach(msg => msg.remove());
+                });
+                debugContainer.appendChild(clearBtn);
+            }
+            
+            // Create message element
+            const msgElement = document.createElement('div');
+            msgElement.className = 'debug-message';
+            msgElement.style.marginBottom = '5px';
+            msgElement.style.padding = '3px';
+            msgElement.style.borderRadius = '3px';
+            msgElement.style.color = isError ? '#FF5555' : '#AAFFAA';
+            msgElement.style.background = isError ? 'rgba(100, 0, 0, 0.3)' : 'rgba(0, 50, 0, 0.3)';
+            msgElement.style.borderLeft = isError ? '3px solid #FF0000' : '3px solid #00FF00';
+            msgElement.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            // Add to container
+            debugContainer.appendChild(msgElement);
+            
+            // Scroll to bottom
+            debugContainer.scrollTop = debugContainer.scrollHeight;
+            
+            // Auto-remove after 30 seconds (longer for errors)
+            setTimeout(() => {
+                if (msgElement.parentNode === debugContainer) {
+                    msgElement.style.opacity = '0.5';
+                }
+            }, isError ? 60000 : 30000);
+            
+            // Flash the container to draw attention
+            debugContainer.style.backgroundColor = isError ? 'rgba(100, 0, 0, 0.9)' : 'rgba(0, 50, 0, 0.9)';
+            setTimeout(() => {
+                debugContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+            }, 300);
+            
+            return msgElement; // Return the message element for potential further manipulation
+        }
+
+        // Firebase initialization
+        // Replace hardcoded Firebase config with a more secure approach
+        function initializeFirebase() {
+            try {
+                // Check if Firebase is already initialized
+                if (firebase.apps.length) {
+                    console.log("Firebase already initialized");
+                    return;
+                }
+                
+                // Create a placeholder for Firebase config
+                const firebaseConfigPlaceholder = document.getElementById('firebase-config');
+                if (!firebaseConfigPlaceholder) {
+                    console.error("Firebase config placeholder not found");
+                    showDebugMessage("Error: Firebase config placeholder not found", "error");
+                    return;
+                }
+                
+                // Get the Firebase config from the data attributes
+                const firebaseConfig = {
+                    apiKey: firebaseConfigPlaceholder.getAttribute('data-api-key') || "",
+                    authDomain: firebaseConfigPlaceholder.getAttribute('data-auth-domain') || "",
+                    projectId: firebaseConfigPlaceholder.getAttribute('data-project-id') || "",
+                    storageBucket: firebaseConfigPlaceholder.getAttribute('data-storage-bucket') || "",
+                    messagingSenderId: firebaseConfigPlaceholder.getAttribute('data-messaging-sender-id') || "",
+                    appId: firebaseConfigPlaceholder.getAttribute('data-app-id') || "",
+                    databaseURL: firebaseConfigPlaceholder.getAttribute('data-database-url') || ""
+                };
+                
+                // Check if we have the required Firebase config
+                if (!firebaseConfig.apiKey || !firebaseConfig.databaseURL) {
+                    console.error("Firebase configuration is missing required fields");
+                    showDebugMessage("Error: Firebase configuration is incomplete", "error");
+                    return;
+                }
+                
+                // Initialize Firebase
+                firebase.initializeApp(firebaseConfig);
+                console.log("Firebase initialized successfully");
+                showDebugMessage("Firebase initialized successfully", "success");
+                
+                // Make Firebase functions globally accessible
+                window.firebase = firebase;
+                window.database = firebase.database();
+                
+                // Fetch public highscores
+                fetchPublicHighscores();
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                showDebugMessage("Error initializing Firebase: " + error.message, "error");
+            }
         }
     </script>
 </body>
