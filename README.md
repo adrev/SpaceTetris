@@ -15,13 +15,20 @@ This game uses Firebase for storing high scores. To set up your own Firebase pro
 
 ```javascript
 firebaseConfig.setAttribute('data-api-key', 'YOUR_API_KEY');
-firebaseConfig.setAttribute('data-auth-domain', 'YOUR_AUTH_DOMAIN');
+firebaseConfig.setAttribute('data-auth-domain', 'YOUR_PROJECT_ID.firebaseapp.com');
 firebaseConfig.setAttribute('data-project-id', 'YOUR_PROJECT_ID');
-firebaseConfig.setAttribute('data-storage-bucket', 'YOUR_STORAGE_BUCKET');
+firebaseConfig.setAttribute('data-storage-bucket', 'YOUR_PROJECT_ID.appspot.com');
 firebaseConfig.setAttribute('data-messaging-sender-id', 'YOUR_MESSAGING_SENDER_ID');
 firebaseConfig.setAttribute('data-app-id', 'YOUR_APP_ID');
-firebaseConfig.setAttribute('data-database-url', 'YOUR_DATABASE_URL');
+firebaseConfig.setAttribute('data-database-url', 'https://YOUR_PROJECT_ID.firebaseio.com');
 ```
+
+### Important Note About Database URL
+
+The database URL **MUST** be in the format: `https://YOUR_PROJECT_ID.firebaseio.com`
+
+For example, if your project ID is `space-invaders-game`, your database URL should be:
+`https://space-invaders-game.firebaseio.com`
 
 ### Security Note
 
