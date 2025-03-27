@@ -2,6 +2,11 @@
 
 A browser-based Space Invaders game with Firebase integration for high score tracking.
 
+## GitHub Pages
+
+This game is hosted on GitHub Pages. You can play it directly in your browser at:
+https://adrev.github.io/
+
 ## Setup Instructions
 
 ### Firebase Configuration
