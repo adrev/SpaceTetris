@@ -1,11 +1,11 @@
-# Space Invaders Game
+# SpaceTetris Game
 
-A browser-based Space Invaders game with Firebase integration for high score tracking.
+A browser-based game that combines Space Invaders with Tetris elements and Firebase integration for high score tracking.
 
 ## GitHub Pages
 
 This game is hosted on GitHub Pages. You can play it directly in your browser at:
-https://adrev.github.io/
+https://adrev.github.io/SpaceTetris/
 
 ## Setup Instructions
 
