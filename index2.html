@@ -43,43 +43,67 @@
                 };
                 console.log("Using Firebase config from config.js");
             } else {
-                // Fallback to hardcoded config
-                firebaseConfig = {
-                    apiKey: "AIzaSyDv2Aow7VEUnFXglySeGG-EylH78UJVt7c",
-                    authDomain: "spacetris-cc8ec.firebaseapp.com",
-                    databaseURL: "https://spacetris-cc8ec-default-rtdb.europe-west1.firebasedatabase.app",
-                    projectId: "spacetris-cc8ec",
-                    storageBucket: "spacetris-cc8ec.firebasestorage.app",
-                    messagingSenderId: "866701367465",
-                    appId: "1:866701367465:web:e5d22916bb27355cbdf1b8"
-                };
-                console.log("Using fallback Firebase config");
+                // No config element found - provide instructions
+                firebaseConfig = null;
+                console.error("Firebase configuration not found. High scores will not be available.");
+                window.safeLog("Firebase configuration not found. Make sure config.js is properly set up.", "error");
+                
+                // Show an error message to the user
+                const errorMsg = document.createElement('div');
+                errorMsg.style.position = 'fixed';
+                errorMsg.style.top = '50%';
+                errorMsg.style.left = '50%';
+                errorMsg.style.transform = 'translate(-50%, -50%)';
+                errorMsg.style.background = 'rgba(0,0,0,0.9)';
+                errorMsg.style.color = '#ff0000';
+                errorMsg.style.padding = '20px';
+                errorMsg.style.border = '2px solid #ff0000';
+                errorMsg.style.zIndex = '10000';
+                errorMsg.innerHTML = `
+                    <h3>Firebase Configuration Missing</h3>
+                    <p>The game's high score system requires a Firebase configuration.</p>
+                    <p>Please create a config.js file with your Firebase credentials.</p>
+                    <button id="closeErrorMsg" style="background:#333; color:#fff; padding:5px 10px; margin-top:10px; cursor:pointer;">
+                        Close
+                    </button>
+                `;
+                document.body.appendChild(errorMsg);
+                
+                document.getElementById('closeErrorMsg').addEventListener('click', function() {
+                    errorMsg.style.display = 'none';
+                });
+                
+                return; // Exit initialization
             }
             
-            // Log the database URL for debugging
-            console.log("Database URL:", firebaseConfig.databaseURL);
+            // Log the database URL for debugging (without showing the full URL)
+            if (firebaseConfig && firebaseConfig.databaseURL) {
+                console.log("Database URL configured:", "***hidden***");
+            }
             
             // Initialize Firebase
-            firebase.initializeApp(firebaseConfig);
-            console.log("Firebase initialized successfully");
-            
-            // Make Firebase functions globally accessible
-            window.firebase = firebase;
-            
-            // Test database connection (read only, no write test)
-            const connectedRef = firebase.database().ref(".info/connected");
-            connectedRef.on("value", (snap) => {
-                if (snap.val() === true) {
-                    console.log("Connected to Firebase database");
-                    
-                    // Fetch highscores after connection is confirmed
-                    setTimeout(() => {
-                        getPublicHighscores();
-                    }, 1000);
-                } else {
-                    console.log("Not connected to Firebase database");
-                }
-            });
+            if (firebaseConfig) {
+                firebase.initializeApp(firebaseConfig);
+                console.log("Firebase initialized successfully");
+                
+                // Make Firebase functions globally accessible
+                window.firebase = firebase;
+                
+                // Test database connection (read only, no write test)
+                const connectedRef = firebase.database().ref(".info/connected");
+                connectedRef.on("value", (snap) => {
+                    if (snap.val() === true) {
+                        console.log("Connected to Firebase database");
+                        
+                        // Fetch highscores after connection is confirmed
+                        setTimeout(() => {
+                            getPublicHighscores();
+                        }, 1000);
+                    } else {
+                        console.log("Not connected to Firebase database");
+                    }
+                });
+            }
         } catch (error) {
             console.error("Error initializing Firebase:", error);
             window.safeLog("Firebase initialization error: " + error.message, "error");

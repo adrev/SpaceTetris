@@ -153,14 +153,40 @@
         <button id="settingsBtn">⚙️</button>
     </div>
 
+    <!-- Firebase configuration placeholder - populated by config.js -->
+    <div id="firebase-config" style="display: none;"></div>
+
     <script>
         // Firebase initialization
-        const firebaseConfig = {
-            apiKey: "AIzaSyDv2Aow7VEUnFXglySeGG-EylH78UJVt7c",
-            databaseURL: "https://spacetris-cc8ec-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "spacetris-cc8ec"
-        };
-        firebase.initializeApp(firebaseConfig);
+        // Load Firebase configuration from config.js
+        fetch('config.js')
+            .then(response => response.text())
+            .then(script => {
+                // Execute the config script to set up the Firebase configuration
+                eval(script);
+                
+                // Initialize Firebase after config is loaded
+                const firebaseConfigElement = document.getElementById('firebase-config');
+                if (firebaseConfigElement) {
+                    const firebaseConfig = {
+                        apiKey: firebaseConfigElement.getAttribute('data-api-key'),
+                        authDomain: firebaseConfigElement.getAttribute('data-auth-domain'),
+                        projectId: firebaseConfigElement.getAttribute('data-project-id'),
+                        storageBucket: firebaseConfigElement.getAttribute('data-storage-bucket'),
+                        messagingSenderId: firebaseConfigElement.getAttribute('data-messaging-sender-id'),
+                        appId: firebaseConfigElement.getAttribute('data-app-id'),
+                        databaseURL: firebaseConfigElement.getAttribute('data-database-url')
+                    };
+                    firebase.initializeApp(firebaseConfig);
+                } else {
+                    console.error('Firebase configuration element not found');
+                    alert('Firebase configuration not found. High scores will not be available.');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading Firebase configuration:', error);
+                alert('Firebase configuration could not be loaded. High scores will not be available.');
+            });
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
