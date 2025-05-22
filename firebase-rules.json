@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "highscores": {
+      ".read": true,
+      ".write": false,
+      "$scoreId": {
+        ".write": "!data.exists() && newData.hasChildren(['name', 'score', 'timestamp'])",
+        ".validate": "!data.exists()",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+        },
+        "score": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999999"
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

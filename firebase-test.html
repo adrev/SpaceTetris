@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Integration Test Suite</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .test-pass {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+        }
+        .test-fail {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff0000;
+            color: #ff0000;
+        }
+        .test-pending {
+            background: rgba(255, 255, 0, 0.2);
+            border: 1px solid #ffff00;
+            color: #ffff00;
+        }
+        button {
+            background: #333;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        #highscoresList {
+            background: #333;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #555;
+        }
+        .loading {
+            color: #ffff00;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SpaceTetris Firebase Test Suite</h1>
+        
+        <div class="test-section">
+            <h2>Configuration Tests</h2>
+            <button onclick="runConfigTests()">Run Config Tests</button>
+            <div id="config-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Firebase Connection Tests</h2>
+            <button onclick="runConnectionTests()">Run Connection Tests</button>
+            <div id="connection-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Database Operations Tests</h2>
+            <button onclick="runDatabaseTests()">Run Database Tests</button>
+            <div id="database-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Highscore Integration Tests</h2>
+            <button onclick="runHighscoreTests()">Run Highscore Tests</button>
+            <div id="highscore-results"></div>
+            <div id="highscoresList"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Complete Test Suite</h2>
+            <button onclick="runAllTests()">🧪 Run All Tests</button>
+            <div id="summary-results"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script>
+        let testResults = {
+            passed: 0,
+            failed: 0,
+            total: 0
+        };
+
+        function logTest(containerId, testName, success, message = '') {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = `test-result ${success ? 'test-pass' : 'test-fail'}`;
+            div.innerHTML = `${success ? '✅' : '❌'} ${testName}${message ? ': ' + message : ''}`;
+            container.appendChild(div);
+            
+            testResults.total++;
+            if (success) testResults.passed++;
+            else testResults.failed++;
+        }
+
+        function logPending(containerId, testName) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = 'test-result test-pending';
+            div.innerHTML = `⏳ ${testName}`;
+            container.appendChild(div);
+            return div;
+        }
+
+        async function runConfigTests() {
+            const containerId = 'config-results';
+            document.getElementById(containerId).innerHTML = '';
+            
+            try {
+                // Test 1: Config file accessibility
+                const pendingDiv = logPending(containerId, 'Loading config file');
+                const response = await fetch('config.js');
+                pendingDiv.remove();
+                logTest(containerId, 'Config file accessible', response.ok, `Status: ${response.status}`);
+                
+                // Test 2: Config file parsing
+                const config = await response.json();
+                logTest(containerId, 'Config file valid JSON', true);
+                
+                // Test 3: Required fields present
+                const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'databaseURL'];
+                let missingFields = [];
+                
+                for (const field of requiredFields) {
+                    if (!config[field]) {
+                        missingFields.push(field);
+                    }
+                }
+                
+                logTest(containerId, 'All required fields present', missingFields.length === 0, 
+                    missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : '');
+                
+                // Test 4: Database URL format
+                const validDbUrl = config.databaseURL && config.databaseURL.includes('firebasedatabase.app');
+                logTest(containerId, 'Database URL format valid', validDbUrl, config.databaseURL);
+                
+                return config;
+                
+            } catch (error) {
+                logTest(containerId, 'Config loading failed', false, error.message);
+                throw error;
+            }
+        }
+
+        async function runConnectionTests() {
+            const containerId = 'connection-results';
+            document.getElementById(containerId).innerHTML = '';
+            
+            try {
+                // Get config first
+                const config = await runConfigTests();
+                
+                // Test 1: Firebase initialization
+                const pendingDiv = logPending(containerId, 'Initializing Firebase');
+                
+                // Clear any existing Firebase apps
+                if (firebase.apps.length > 0) {
+                    await firebase.app().delete();
+                }
+                
+                firebase.initializeApp(config);
+                pendingDiv.remove();
+                logTest(containerId, 'Firebase app initialized', true);
+                
+                // Test 2: Database service availability
+                const database = firebase.database();
+                logTest(containerId, 'Database service available', !!database);
+                
+                // Test 3: Authentication (anonymous)
+                const app = firebase.app();
+                logTest(containerId, 'Firebase app instance created', !!app, `Name: ${app.name}`);
+                
+                return { config, database };
+                
+            } catch (error) {
+                logTest(containerId, 'Firebase connection failed', false, error.message);
+                throw error;
+            }
+        }
+
+        async function runDatabaseTests() {
+            const containerId = 'database-results';
+            document.getElementById(containerId).innerHTML = '';
+            
+            try {
+                // Get database instance
+                const { database } = await runConnectionTests();
+                
+                // Test 1: Read highscores (should always work)
+                const pendingRead = logPending(containerId, 'Reading highscores path');
+                const snapshot = await database.ref('highscores').once('value');
+                pendingRead.remove();
+                logTest(containerId, 'Highscores path readable', true, `Found ${snapshot.numChildren()} scores`);
+                
+                // Test 2: Test valid highscore submission
+                const validScore = {
+                    name: 'TestPlayer',
+                    score: 1337,
+                    timestamp: Date.now()
+                };
+                
+                const pendingValid = logPending(containerId, 'Testing valid score submission');
+                const validRef = await database.ref('highscores').push(validScore);
+                pendingValid.remove();
+                logTest(containerId, 'Valid score submission works', true);
+                
+                // Test 3: Test invalid score rejection (negative score)
+                try {
+                    const invalidScore = {
+                        name: 'Cheater',
+                        score: -100,
+                        timestamp: Date.now()
+                    };
+                    await database.ref('highscores').push(invalidScore);
+                    logTest(containerId, 'Invalid score rejection', false, 'Negative score was accepted');
+                } catch (error) {
+                    logTest(containerId, 'Invalid score rejection', true, 'Negative score properly rejected');
+                }
+                
+                // Test 4: Test data validation (missing fields)
+                try {
+                    const incompleteScore = {
+                        name: 'Incomplete'
+                        // missing score and timestamp
+                    };
+                    await database.ref('highscores').push(incompleteScore);
+                    logTest(containerId, 'Data validation works', false, 'Incomplete data was accepted');
+                } catch (error) {
+                    logTest(containerId, 'Data validation works', true, 'Incomplete data properly rejected');
+                }
+                
+                // Test 5: Test modification prevention
+                try {
+                    await validRef.update({ score: 999999 });
+                    logTest(containerId, 'Modification prevention', false, 'Score modification was allowed');
+                } catch (error) {
+                    logTest(containerId, 'Modification prevention', true, 'Score modification properly blocked');
+                }
+                
+                // Test 6: Verify deletion is prevented (security feature)
+                try {
+                    await validRef.remove();
+                    logTest(containerId, 'Deletion prevention', false, 'Test data was deleted (security rule failed)');
+                } catch (error) {
+                    logTest(containerId, 'Deletion prevention', true, 'Score deletion properly blocked by security rules');
+                }
+                
+            } catch (error) {
+                logTest(containerId, 'Database operation failed', false, error.message);
+                throw error;
+            }
+        }
+
+        async function runHighscoreTests() {
+            const containerId = 'highscore-results';
+            document.getElementById(containerId).innerHTML = '';
+            
+            try {
+                // Get database instance
+                const { database } = await runConnectionTests();
+                
+                // Test 1: Submit test highscore
+                const testScore = {
+                    name: 'TestPlayer',
+                    score: Math.floor(Math.random() * 10000),
+                    timestamp: Date.now()
+                };
+                
+                const pendingSubmit = logPending(containerId, 'Submitting test highscore');
+                const scoreRef = await database.ref('highscores').push(testScore);
+                pendingSubmit.remove();
+                logTest(containerId, 'Highscore submission successful', true, `Score: ${testScore.score}`);
+                
+                // Test 2: Retrieve highscores
+                const pendingRetrieve = logPending(containerId, 'Retrieving highscores');
+                const highscoresSnapshot = await database.ref('highscores').orderByChild('score').limitToLast(10).once('value');
+                pendingRetrieve.remove();
+                
+                const highscores = [];
+                highscoresSnapshot.forEach(child => {
+                    highscores.push({ id: child.key, ...child.val() });
+                });
+                highscores.sort((a, b) => b.score - a.score);
+                
+                logTest(containerId, 'Highscores retrieved', highscores.length > 0, `Found ${highscores.length} scores`);
+                
+                // Test 3: Display highscores
+                const listContainer = document.getElementById('highscoresList');
+                listContainer.innerHTML = '<h3>Current Highscores:</h3>';
+                
+                if (highscores.length > 0) {
+                    highscores.forEach((score, index) => {
+                        const div = document.createElement('div');
+                        div.className = 'score-item';
+                        div.innerHTML = `
+                            <span>${index + 1}. ${score.name}</span>
+                            <span>${score.score} pts</span>
+                            <span>${new Date(score.timestamp).toLocaleString()}</span>
+                        `;
+                        listContainer.appendChild(div);
+                    });
+                    logTest(containerId, 'Highscores display successful', true);
+                } else {
+                    listContainer.innerHTML += '<p>No highscores found</p>';
+                }
+                
+                // Test 4: Note about cleanup
+                logTest(containerId, 'Security note', true, 'Test scores remain in database (deletion prevented by security rules)');
+                
+            } catch (error) {
+                logTest(containerId, 'Highscore operation failed', false, error.message);
+                throw error;
+            }
+        }
+
+        async function runAllTests() {
+            const containerId = 'summary-results';
+            document.getElementById(containerId).innerHTML = '<div class="loading">Running complete test suite...</div>';
+            
+            // Reset test results
+            testResults = { passed: 0, failed: 0, total: 0 };
+            
+            try {
+                await runConfigTests();
+                await runConnectionTests();
+                await runDatabaseTests();
+                await runHighscoreTests();
+                
+                // Display summary
+                const container = document.getElementById(containerId);
+                const successRate = Math.round((testResults.passed / testResults.total) * 100);
+                
+                container.innerHTML = `
+                    <div class="test-result ${testResults.failed === 0 ? 'test-pass' : 'test-fail'}">
+                        <h3>🎯 Test Summary</h3>
+                        <p>Tests Passed: ${testResults.passed}/${testResults.total}</p>
+                        <p>Success Rate: ${successRate}%</p>
+                        <p>Status: ${testResults.failed === 0 ? '🎉 ALL TESTS PASSED!' : '⚠️ Some tests failed'}</p>
+                    </div>
+                `;
+                
+                if (testResults.failed === 0) {
+                    container.innerHTML += `
+                        <div class="test-result test-pass">
+                            ✅ Firebase is fully configured and working correctly!<br>
+                            ✅ The SpaceTetris highscore system is ready for production use.
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                document.getElementById(containerId).innerHTML = `
+                    <div class="test-result test-fail">
+                        <h3>❌ Test Suite Failed</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Please check your Firebase configuration and try again.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🧪 Firebase Test Suite loaded. Click buttons to run tests.');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

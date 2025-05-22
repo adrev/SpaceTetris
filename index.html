@@ -10,45 +10,80 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-    <div id="gameContainer">
-        <canvas id="gameCanvas" width="600" height="800"></canvas>
-        <div id="gameOverOverlay">
-            <h2 style="color: #ff5555">GAME OVER</h2>
-            <p id="finalScore" style="color: #ffff00">SCORE: 0</p>
-            <div id="userProfile">
-                <p>ENTER YOUR NAME:</p>
-                <input type="text" id="nicknameInput" maxlength="30">
-                <button id="submitScoreBtn">SUBMIT SCORE</button>
+    <div class="main-layout">
+        <div id="gameSection">
+            <div id="gameContainer">
+                <canvas id="gameCanvas" width="600" height="800"></canvas>
+                <div class="game-hud">
+                    <div class="hud-score" id="hudScore">SCORE: 0</div>
+                    <div class="hud-level" id="hudLevel">LEVEL: 1</div>
+                </div>
+                <button id="settingsBtn">⚙️</button>
+            </div>
+            <div id="gameInstructions">
+                <p>🎮 Click on game to focus • ← → ↑ ↓ Arrow Keys: Move • Spacebar: Shoot</p>
             </div>
         </div>
-        <div id="settingsOverlay">
-            <h2 style="color: #ffff00">SETTINGS</h2>
-            <p id="playerNameDisplay" style="color: #00ffff">PLAYER: ANONYMOUS</p>
-            <label>SOUND: <input type="checkbox" id="soundToggle" checked></label>
-            <label>MUSIC: <input type="checkbox" id="musicToggle" checked></label>
-            <div id="musicControls">
-                <button id="prevSong">◀</button>
-                <button id="nextSong">▶</button>
+        
+        <div id="sidebarSection">
+            <div id="publicHighscoreDisplay">
+                <h3>TOP SCORES</h3>
+                <div id="publicHighscoresList">
+                    <div>
+                        <span>RANK</span>
+                        <span>NAME</span>
+                        <span>SCORE</span>
+                    </div>
+                    <div id="loadingScores">Loading highscores...</div>
+                </div>
             </div>
-            <button id="closeSettings">CLOSE</button>
         </div>
-        <button id="settingsBtn">⚙️</button>
     </div>
-    <div id="publicHighscoreDisplay">
-        <h3>TOP SCORES</h3>
-        <div id="publicHighscoresList">
-            <div>
-                <span>RANK</span>
-                <span>NAME</span>
-                <span>SCORE</span>
+
+    <!-- Full-screen modals -->
+    <div id="gameOverOverlay">
+        <div class="overlay-content">
+            <h2 style="color: #ff5555; margin-bottom: 20px;">GAME OVER</h2>
+            <p id="finalScore" style="color: #ffff00; font-size: 16px; margin-bottom: 30px;">SCORE: 0</p>
+            <div id="userProfile">
+                <p style="margin-bottom: 15px;">ENTER YOUR NAME:</p>
+                <input type="text" id="nicknameInput" maxlength="30" placeholder="Enter your name...">
+                <div style="margin-top: 20px;">
+                    <button id="submitScoreBtn">SUBMIT SCORE</button>
+                    <button onclick="resetGame()" style="margin-top: 10px; border-color: #00ff00; color: #00ff00;">PLAY AGAIN</button>
+                </div>
             </div>
-            <div id="loadingScores">Loading highscores...</div>
+        </div>
+    </div>
+    
+    <div id="settingsOverlay">
+        <div class="overlay-content">
+            <h2 style="color: #ffff00; margin-bottom: 30px;">⚙️ SETTINGS</h2>
+            <div class="settings-section">
+                <p id="playerNameDisplay" style="color: #00ffff; margin-bottom: 20px;">PLAYER: ANONYMOUS</p>
+                
+                <div class="setting-item">
+                    <label>🔊 SOUND: <input type="checkbox" id="soundToggle" checked></label>
+                </div>
+                
+                <div class="setting-item">
+                    <label>🎵 MUSIC: <input type="checkbox" id="musicToggle" checked></label>
+                </div>
+                
+                <div id="musicControls" style="margin: 20px 0;">
+                    <button id="prevSong">◀ PREV</button>
+                    <button id="nextSong">NEXT ▶</button>
+                </div>
+                
+                <button id="closeSettings" style="margin-top: 20px;">✕ CLOSE</button>
+            </div>
         </div>
     </div>
     
     <!-- Firebase configuration placeholder - populated by config.js -->
     <div id="firebase-config" style="display: none;"></div>
 
+    <script src="js/constants.js"></script>
     <script src="js/firebase.js"></script>
     <script src="js/game.js"></script>
 </body>

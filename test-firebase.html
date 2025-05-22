@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Test</title>
+</head>
+<body>
+    <h1>Firebase Connection Test</h1>
+    <button onclick="testFirebase()">Test Firebase</button>
+    <div id="result"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script>
+        async function testFirebase() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Test 1: Load config
+                resultDiv.innerHTML += '<p>Loading config...</p>';
+                const response = await fetch('config.js');
+                const config = await response.json();
+                resultDiv.innerHTML += '<p>✅ Config loaded successfully</p>';
+                
+                // Test 2: Initialize Firebase
+                resultDiv.innerHTML += '<p>Initializing Firebase...</p>';
+                firebase.initializeApp(config);
+                resultDiv.innerHTML += '<p>✅ Firebase initialized</p>';
+                
+                // Test 3: Test database connection
+                resultDiv.innerHTML += '<p>Testing database connection...</p>';
+                const db = firebase.database();
+                const ref = db.ref('test');
+                await ref.set({ timestamp: Date.now() });
+                resultDiv.innerHTML += '<p>✅ Database write successful</p>';
+                
+                // Test 4: Test database read
+                const snapshot = await ref.once('value');
+                resultDiv.innerHTML += '<p>✅ Database read successful: ' + JSON.stringify(snapshot.val()) + '</p>';
+                
+                resultDiv.innerHTML += '<p><strong>🎉 All tests passed!</strong></p>';
+                
+            } catch (error) {
+                resultDiv.innerHTML += '<p>❌ Error: ' + error.message + '</p>';
+                console.error('Firebase test error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

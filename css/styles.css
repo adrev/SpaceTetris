@@ -2,14 +2,64 @@ body {
     margin: 0;
     padding: 0;
     font-family: 'Press Start 2P', cursive;
-    background-color: #000;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
     color: #fff;
+    min-height: 100vh;
+    animation: flicker 3s infinite;
+    position: relative;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.main-layout {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    gap: 30px;
+    padding: 20px;
+}
+
+#gameSection {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-height: 100vh;
-    animation: flicker 5s infinite;
-    position: relative;
+    gap: 15px;
+}
+
+#sidebarSection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@media (max-width: 1200px) {
+    .main-layout {
+        flex-direction: column;
+        align-items: center;
+        gap: 25px;
+    }
+    
+    #sidebarSection {
+        order: 2;
+        width: 100%;
+        max-width: 600px;
+    }
+    
+    #gameSection {
+        order: 1;
+    }
+}
+
+/* Prevent scrolling when game is focused */
+body.game-focused {
+    overflow: hidden;
+}
+
+/* Game container should be focusable */
+#gameContainer {
+    outline: none; /* Remove focus outline */
 }
 
 @keyframes flicker {
@@ -42,69 +92,161 @@ body::after {
 
 #gameContainer {
     position: relative;
-    width: 600px;
-    height: 800px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#gameInstructions {
+    background: rgba(0, 0, 0, 0.8);
+    color: #00ff00;
+    padding: 15px 25px;
+    border: 1px solid #00ff00;
+    border-radius: 8px;
+    font-size: 10px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    backdrop-filter: blur(5px);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+#gameInstructions p {
+    margin: 0;
 }
 
 #gameCanvas {
-    background-color: #000;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 100, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(255, 0, 100, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(0, 255, 200, 0.05) 0%, transparent 70%),
+        linear-gradient(180deg, #001122 0%, #000511 50%, #000000 100%);
     image-rendering: pixelated;
-    border: 4px solid #00ff00;
-    box-shadow: 0 0 10px #00ff00;
-    width: 600px;
-    height: 800px;
+    border: 3px solid #00ff88;
+    box-shadow: 
+        0 0 30px rgba(0, 255, 136, 0.6),
+        inset 0 0 30px rgba(0, 255, 136, 0.1),
+        0 0 60px rgba(0, 255, 136, 0.3);
+    width: 100%;
+    height: 100%;
+    max-width: 600px;
+    max-height: 800px;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+#gameCanvas::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 40px 70px, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(1px 1px at 90px 40px, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 130px 80px, rgba(255, 255, 255, 0.2), transparent);
+    background-repeat: repeat;
+    background-size: 150px 200px;
+    animation: starfield 20s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes starfield {
+    0% { transform: translateY(-200px); }
+    100% { transform: translateY(0px); }
 }
 
 #gameOverOverlay, #settingsOverlay {
-    position: absolute;
-    background-color: rgba(0, 0, 0, 0.9);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(15px);
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
-    padding: 20px;
+    z-index: 9999;
+    padding: 0;
     box-sizing: border-box;
 }
 
-#gameOverOverlay {
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border: 4px solid #ff0000;
+.overlay-content {
+    background: linear-gradient(145deg, rgba(10, 10, 10, 0.95), rgba(30, 30, 50, 0.95));
+    border: 2px solid;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(20px);
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    text-align: center;
+    position: relative;
+    z-index: 10001;
 }
 
-#settingsOverlay {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 350px;
-    border: 4px solid #ffff00;
+#gameOverOverlay .overlay-content {
+    border-color: #ff0000;
+    box-shadow: 0 0 30px rgba(255, 0, 0, 0.5), 0 20px 40px rgba(0, 0, 0, 0.9);
+    animation: gameOverPulse 2s ease-in-out infinite;
+}
+
+@keyframes gameOverPulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.5), 0 20px 40px rgba(0, 0, 0, 0.9); }
+    50% { box-shadow: 0 0 50px rgba(255, 0, 0, 0.8), 0 20px 40px rgba(0, 0, 0, 0.9); }
+}
+
+#settingsOverlay .overlay-content {
+    border-color: #ffff00;
+    box-shadow: 0 0 30px rgba(255, 255, 0, 0.3), 0 20px 40px rgba(0, 0, 0, 0.9);
+    min-width: 400px;
 }
 
 #settingsBtn {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #000;
+    top: 70px;
+    right: 15px;
+    background: linear-gradient(145deg, rgba(26, 26, 26, 0.9), rgba(51, 51, 51, 0.9));
     color: #ffff00;
-    border: 2px solid #ffff00;
-    padding: 5px 10px;
+    border: 1px solid #ffff00;
+    border-radius: 8px;
+    padding: 8px 12px;
     cursor: pointer;
     font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(5px);
+    z-index: 20;
+}
+
+#settingsBtn:hover {
+    background: linear-gradient(145deg, rgba(51, 51, 51, 0.9), rgba(85, 85, 85, 0.9));
+    box-shadow: 0 0 15px rgba(255, 255, 0, 0.4);
+    transform: translateY(-1px);
 }
 
 #publicHighscoreDisplay {
-    max-width: 380px;
+    width: 350px;
     text-align: center;
-    border: 4px solid #ffff00;
-    padding: 15px;
-    background-color: rgba(0, 0, 0, 0.8);
-    box-shadow: 0 0 10px #ffff00;
-    margin: 20px;
+    border: 2px solid #ffff00;
+    border-radius: 12px;
+    padding: 25px;
+    background: linear-gradient(145deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 40, 0.9));
+    box-shadow: 0 0 20px rgba(255, 255, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
     overflow-y: auto;
-    max-height: 400px;
+    max-height: 80vh;
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 1;
 }
 
 #publicHighscoreDisplay h3 {
@@ -115,11 +257,20 @@ body::after {
 }
 
 .settingsButton, #closeSettings, #submitScoreBtn {
-    padding: 10px 20px;
-    background-color: #000;
+    padding: 12px 24px;
+    background: linear-gradient(145deg, #1a1a1a, #333);
     border: 2px solid;
+    border-radius: 6px;
     cursor: pointer;
     font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    transition: all 0.2s ease;
+    margin: 5px;
+}
+
+.settingsButton:hover, #closeSettings:hover, #submitScoreBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 #submitScoreBtn {
@@ -129,11 +280,20 @@ body::after {
 
 #nicknameInput {
     width: 100%;
-    padding: 10px;
+    padding: 12px;
     border: 2px solid #00ffff;
-    background-color: #000;
+    border-radius: 6px;
+    background: linear-gradient(145deg, #0a0a0a, #1a1a1a);
     color: #00ffff;
     font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    margin: 10px 0;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#nicknameInput:focus {
+    outline: none;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #musicControls {
@@ -150,6 +310,66 @@ body::after {
 #closeSettings {
     border-color: #ff0000;
     color: #ff0000;
+}
+
+/* Settings styling */
+.settings-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.setting-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.setting-item label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.setting-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #00ff00;
+}
+
+/* Game HUD improvements */
+.game-hud {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    right: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    border-radius: 8px;
+    padding: 8px 15px;
+    backdrop-filter: blur(5px);
+    z-index: 15;
+    pointer-events: none;
+}
+
+.hud-score, .hud-level {
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 0 5px currentColor;
+}
+
+.hud-score {
+    color: #ffff00;
+}
+
+.hud-level {
+    color: #00ffff;
 }
 
 #publicHighscoresList > div:first-child {
